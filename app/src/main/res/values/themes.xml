@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      Compose owns all app theming. This platform theme exists only so the window
+      does not flash a colour Compose is about to paint over, and to keep the system
+      bars transparent for edge-to-edge. Parenting to the platform Material theme
+      avoids pulling in appcompat for a window background.
+    -->
+    <style name="Theme.Trace" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/rice_paper</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+    </style>
+</resources>

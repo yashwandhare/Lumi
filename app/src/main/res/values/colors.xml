@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      The one window-background colour, kept in sync with TraceColors.RicePaper in
+      the Compose theme. Everything else lives in Kotlin theme tokens.
+    -->
+    <color name="rice_paper">#FAF8F3</color>
+</resources>

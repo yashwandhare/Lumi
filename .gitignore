@@ -1,0 +1,33 @@
+# Gradle
+.gradle/
+build/
+local.properties
+.kotlin/
+
+# Android
+*.apk
+*.aab
+*.ap_
+*.dex
+release/
+captures/
+.cxx/
+
+# Room exported schemas are committed on purpose — they are the migration record.
+# Do not ignore app/schemas/
+
+# IDE
+.idea/
+*.iml
+*.iws
+*.ipr
+.DS_Store
+
+# Signing — never commit
+*.jks
+*.keystore
+
+# Models are fetched at first run, never committed.
+*.litertlm
+*.tflite
+*.onnx
