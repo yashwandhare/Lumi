@@ -276,4 +276,59 @@ built, and it is a model-distribution question, not a code question. Read the te
 **Pin the version.** Google's docs use `latest.release`. Do not. Resolve it once and pin the exact
 version in the version catalogue.
 
+### [deva] 2026-08-14 — No model may require an access token to download
+
+Every model Trace ships or fetches must be reachable without a Hugging Face token, without accepting a
+gate, and without an account.
+
+**Why:** a token is a credential. Shipping one in an APK leaks it; asking a user for one makes the app
+unusable for its actual target — rural users, field workers, elderly and low-tech-literacy users who
+will not manage accounts or keys. It also breaks the demo the moment the token expires or rate-limits.
+
+**What this rules in and out:**
+
+| Model | Status | Consequence |
+|---|---|---|
+| Gemma 4 E2B IT | Ungated, Apache 2.0 | Primary model. Fetch the `.litertlm` build directly, no token |
+| FunctionGemma | **Gated** | Ruled out. Cannot be the tool-calling model |
+| EmbeddingGemma 300m | **Gated** on both `google/` and `litert-community/` | Ruled out as the embedder |
+
+**Consequence for tool calling:** LiteRT-LM's native tool calling is model-dependent and Google's docs
+cite FunctionGemma as the example. Since FunctionGemma is out, native tool calling must be tested
+against Gemma 4 itself — which does have native tool-calling per its own release notes. If it does not
+work through LiteRT-LM, fall back to a hand-rolled registry with JSON extraction, as v1 did.
+
+### [deva] 2026-08-14 — The small router model is a bundled embedder, shared with RAG
+
+Modes, routines, and every other task that does not need Gemma 4 are handled by a small on-device
+embedding model **bundled in the APK as an asset**, not downloaded. The same model serves RAG
+retrieval. One model, two jobs.
+
+Routing runs in three tiers, cheapest first:
+
+1. **Rules.** SOS phrases and exact device commands. Regex, zero latency, deterministic, no model.
+2. **Embedding similarity.** Classify the fuzzy cases — routine, RAG query, journal entry, file
+   request, plain chat — by cosine similarity against labelled example phrases per intent.
+3. **Gemma 4.** Only for actual reasoning, generation, and ambiguity the first two tiers cannot settle.
+
+**Why bundled rather than downloaded:** bundling removes the token question entirely — there is no
+fetch, so there is nothing to gate. It also removes a first-run failure mode on the exact bad
+connectivity the product is built for.
+
+**Why one model for both jobs:** RAG needs an embedder regardless. Reusing it for routing costs no
+extra APK weight, no extra memory, and no second inference stack. PRD §4.2 asks explicitly for this —
+"reuse the main runtime rather than adding a second inference stack under time pressure" — and accepts
+embedding similarity as a valid router.
+
+**Candidate embedders, all ungated and tokenless:** the Universal Sentence Encoder `.tflite` via
+MediaPipe `TextEmbedder`, which v1 shipped at ~5.9MB and is known to work; or a
+sentence-transformers model such as `all-MiniLM-L6-v2` (Apache 2.0, ungated) through ONNX Runtime if
+MediaPipe's `tasks-text` turns out to be deprecated alongside its LLM Inference API. Verify which in
+Phase 1, then pin it.
+
+**Why not a fine-tuned classifier:** it would need training data we do not have and a training pass we
+have no time for. Embedding similarity against example phrases is editable by adding a phrase to a
+list, which matters when the router is wrong at 2am on Aug 20.
+
+
 

@@ -101,9 +101,10 @@ rest of the phase is finished, so Dev B can start.
       build actually accepts `Content.ImageBytes` and `Content.AudioBytes` before any feature depends
       on it. If audio input is unavailable, voice still works — ASR runs separately — but
       "ask about this image" needs a documented fallback.
-- [ ] `[deva]` Model acquisition: bundled asset or first-run download from the litert-community
-      HuggingFace org, with progress and a resumable failure path. Read the Gemma Terms of Use for
-      whichever build ships.
+- [ ] `[deva]` Model acquisition: first-run download of the Gemma 4 E2B IT `.litertlm` build, with
+      progress and a resumable failure path. **No access token, no gate, no account.** The model is
+      ungated and Apache 2.0, so fetch it directly — if a candidate URL demands a token, it is the
+      wrong URL. Read the Gemma Terms of Use for whichever build ships.
 - [ ] `[deva]` `ConversationConfig`: `systemInstruction` for the persona, and
       `SamplerConfig(topK 32-40, topP 0.9, temperature 0.4-0.5)`. Tune against real device numbers,
       not v1's notes.
@@ -112,10 +113,16 @@ rest of the phase is finished, so Dev B can start.
 - [ ] `[deva]` Try `ExperimentalFlags.enableSpeculativeDecoding = true` before `initialize()`. The
       docs call multi-token prediction "universally recommended for all tasks on GPU backends".
       Measure it; drop it if it is unstable.
-- [ ] `[deva]` Evaluate LiteRT-LM's built-in tool calling — a `ToolSet` with `@Tool`/`@ToolParam`
-      reflection, or an `OpenApiTool` with a JSON schema — against hand-rolling a registry as v1 did.
-      Native tool calling is far less code, but it is model-dependent (the docs cite FunctionGemma).
-      Test it with Gemma 4 before committing the router's tool path to it.
+- [ ] `[deva]` Test LiteRT-LM's built-in tool calling **against Gemma 4 itself** — a `ToolSet` with
+      `@Tool`/`@ToolParam` reflection, or an `OpenApiTool` with a JSON schema. Google's docs cite
+      FunctionGemma, which is gated and therefore ruled out, so Gemma 4's own native tool-calling is
+      the only path available. If it does not work through LiteRT-LM, fall back to a hand-rolled
+      registry with JSON extraction as v1 did. Settle this before the router commits to a tool path.
+- [ ] `[deva]` Pick and bundle the embedding model as an APK asset. It serves both the router's
+      similarity tier and RAG retrieval — one model, two jobs. Must be ungated and need no token:
+      Universal Sentence Encoder via MediaPipe `TextEmbedder` (~5.9MB, v1 shipped it), or
+      `all-MiniLM-L6-v2` via ONNX Runtime if MediaPipe `tasks-text` proves deprecated alongside its
+      LLM Inference API. EmbeddingGemma is gated, so it is out. Verify, then pin.
 - [ ] `[deva]` System prompt and persona module. Concise by default, 1-2 sentences unless the user
       asks for more — a UX choice and a decode-speed constraint.
 - [ ] `[deva]` Audit log repository and write path. Build this first so every later capability can
@@ -137,11 +144,20 @@ The router is the architectural centre of the product. Everything else dispatche
 
 - [ ] `[deva]` Input normalization layer. Typed text, voice transcript, widget input, and power-button
       invocation all converge on one internal representation. Design Spec §4.2.
-- [ ] `[deva]` Rule-based router. Returns intent, confidence, and a structured payload. Start with
-      regex and keyword matching — v1 chose this deliberately to keep latency at zero and avoid
-      loading a second model, and PRD §4.2 accepts it for v2.
-- [ ] `[deva]` Router ordering rules. SOS is classified first, before every other action. Reminder
-      and attach verbs overlap ("add"), so fix the precedence order and test the collisions.
+- [ ] `[deva]` Router tier 1 — rules. Regex and keyword matching for SOS phrases and exact device
+      commands. Zero latency, deterministic, no model. Always runs first.
+- [ ] `[deva]` Router tier 2 — embedding similarity. Classify routine, RAG query, journal entry, file
+      request, and plain chat by cosine similarity against labelled example phrases per intent, using
+      the bundled embedder from Phase 1. Keep the phrase lists in one editable place: when the router
+      is wrong, the fix should be adding a phrase, not changing code.
+- [ ] `[deva]` Router tier 3 — Gemma 4. Only for reasoning, generation, and ambiguity the first two
+      tiers cannot settle.
+- [ ] `[deva]` Every tier returns the same shape — intent, confidence, structured payload — so the
+      dispatcher does not care which tier produced it.
+- [ ] `[deva]` Confidence thresholds per tier and the tier-2 to tier-3 escalation rule. Write the
+      numbers down. They will need tuning against real phrasing.
+- [ ] `[deva]` Router ordering rules. SOS is classified first, before every other action. Reminder and
+      attach verbs overlap ("add"), so fix the precedence order and test the collisions.
 - [ ] `[deva]` Dispatcher and capability registry. Each capability independently testable behind the
       `Capability` interface. Design Spec §5.
 - [ ] `[deva]` Router uncertainty path: ask for clarification rather than execute an ambiguous
@@ -195,9 +211,10 @@ silent and turn on wifi."
       scoped-storage limits entirely.
 - [ ] `[deva]` Text extraction: plain text, PDF, docx, and images via OCR.
 - [ ] `[deva]` Chunker with overlap. Tune chunk size against retrieval quality, not by guess.
-- [ ] `[deva]` On-device embedding model as a bundled asset. v1 shipped a ~5.9MB Universal Sentence
-      Encoder via MediaPipe `TextEmbedder`. Note the distinction: MediaPipe's **LLM Inference API** is
-      maintenance-only, but `tasks-text` `TextEmbedder` is a separate, still-current component.
+- [ ] `[deva]` Reuse the bundled embedder chosen in Phase 1 — the same model the router's similarity
+      tier uses. No second embedding model, no download, no token. The distinction that makes this
+      viable: MediaPipe's **LLM Inference API** is maintenance-only, but `tasks-text` `TextEmbedder`
+      is a separate component. Confirm it is still current; fall back to ONNX Runtime if not.
 - [ ] `[deva]` Vector store: brute-force cosine over Room-backed chunks. At personal-notes scale
       (tens to low hundreds of chunks) a linear scan is sub-frame and a real index is unwarranted
       complexity. v1 evaluated Qdrant Edge with a Rust JNI bridge and rejected it — do not revisit

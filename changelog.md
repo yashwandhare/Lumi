@@ -30,6 +30,13 @@ Bad: `[deva] Updated RoutineWorker.kt and added BootReceiver.kt and modified the
 
 ### Changed
 
+- `[deva]` No model may require an access token, a gate, or an account to download. Gemma 4 E2B IT is
+  ungated and fetched directly. FunctionGemma and EmbeddingGemma are both gated and therefore ruled
+  out. See `decisions.md`.
+- `[deva]` Router is now three tiers: regex rules, then embedding similarity against labelled example
+  phrases, then Gemma 4 only for what the first two cannot settle.
+- `[deva]` The small router model is a bundled APK asset shared with RAG retrieval — one embedder,
+  two jobs, no download.
 - `[deva]` Branch workflow: Dev A works on `deva`, Dev B works on `devb`, and neither agent pushes to
   `main`. `main` advances only when the owner says so.
 - `[deva]` Trace v2 builds against the published LiteRT-LM Kotlin API and derives no code from Google
