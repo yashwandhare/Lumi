@@ -225,3 +225,55 @@ hardest-solved part" it deliberately preserved — the attribution obligation ca
 `NOTICE` regardless, since the cost is two files and the downside of getting it wrong in a judged,
 publicly-shown project is real. Needs an owner decision, then a replacement entry here.
 
+### [deva] 2026-08-14 — Branch workflow: `deva` and `devb`, neither pushes to `main`
+
+Supersedes the "Dev B never pushes to `main`" entry above, which was correct but incomplete.
+
+`main` is the integration branch. Dev A works on `deva` and pushes `deva`. Dev B works on `devb` and
+pushes `devb`. **Neither agent pushes to `main`.** Dev A merges both branches into `main` when the owner
+says so. The exception, for either developer, is an explicit instruction to push to `main` in that
+specific instance — it does not carry forward.
+
+**Why:** the earlier rule constrained only Dev B, which left Dev A's agent free to push to `main`
+unprompted. Symmetry is the point: `main` advances only on a human decision, so its state is always
+something a person chose.
+
+### [deva] 2026-08-14 — Resolved: build against the LiteRT-LM Kotlin API, drop the Gallery fork entirely
+
+Supersedes the open attribution question above. **No v2 code derives from Google AI Edge Gallery.**
+Trace v2 depends on the published LiteRT-LM Android artifact and nothing else from Google's samples.
+
+```kotlin
+implementation("com.google.ai.edge.litertlm:litertlm-android:<pinned version>")
+```
+
+**Why this closes the question:** LiteRT-LM ships a first-party, documented Kotlin API. The whole
+surface v1's fork existed to wrap — model load, backend selection, conversation sessions, streaming,
+system instructions, sampler config — is public, documented API:
+
+```kotlin
+val engine = Engine(EngineConfig(modelPath, backend = Backend.GPU(), cacheDir = ...))
+engine.initialize()                                   // off the main thread
+engine.createConversation(ConversationConfig(systemInstruction, samplerConfig)).use { conv ->
+    conv.sendMessageAsync(contents).collect { … }      // Flow, preferred for coroutines
+}
+```
+
+Writing our own thin wrapper over that is ordinary API use, not derivation from a sample app. There is
+therefore no Apache 2.0 source-attribution obligation inherited from the Gallery, and no `NOTICE` to
+propagate from it. Trace picks its own licence.
+
+**The distinction that resolves it:** depending on Google's Maven artifacts creates no
+source-attribution obligation on our code — every Android app depends on dozens of Apache 2.0
+libraries. Copying or adapting the Gallery's *source* is what would have created one. We are doing the
+first and not the second.
+
+**Separate obligation that does still apply:** the Gemma model itself is distributed under the Gemma
+Terms of Use and its Prohibited Use Policy, not Apache 2.0. That applies regardless of how the app is
+built, and it is a model-distribution question, not a code question. Read the terms for whichever
+`.litertlm` build ships.
+
+**Pin the version.** Google's docs use `latest.release`. Do not. Resolve it once and pin the exact
+version in the version catalogue.
+
+

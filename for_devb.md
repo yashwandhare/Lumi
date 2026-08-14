@@ -47,15 +47,19 @@ and a physical test device work. Do not start writing v2 UI code against interfa
 
 ## Git rules
 
-**Work on the `devb` branch. Never push to `main`.**
+**Create the `devb` branch, work on it, and push only it. Never push to `main`.**
 
 ```
-git checkout devb
+git fetch origin
+git checkout -b devb origin/main
 git push -u origin devb
 ```
 
-The only exception is when the project owner explicitly tells you to push to `main`, in that specific
-instance. A previous instruction to do so does not carry forward to the next time.
+Branch layout: `main` is the integration branch. Dev A works on `deva`, you work on `devb`. **Neither
+agent pushes to `main`.** Dev A merges both branches into `main` when the project owner says so.
+
+The only exception is when the owner explicitly tells you, in that specific instance, to push to
+`main`. A previous instruction to do so does not carry forward to the next time.
 
 Keep the git log clean and readable. It is a record other people read.
 

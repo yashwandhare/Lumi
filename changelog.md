@@ -30,6 +30,11 @@ Bad: `[deva] Updated RoutineWorker.kt and added BootReceiver.kt and modified the
 
 ### Changed
 
+- `[deva]` Branch workflow: Dev A works on `deva`, Dev B works on `devb`, and neither agent pushes to
+  `main`. `main` advances only when the owner says so.
+- `[deva]` Trace v2 builds against the published LiteRT-LM Kotlin API and derives no code from Google
+  AI Edge Gallery, so no attribution is inherited from that fork. The Gemma model's own terms still
+  apply separately. See `decisions.md`.
 - `[deva]` Voice stack targets native Android `SpeechRecognizer` and `TextToSpeech` for the Aug 22
   build. Sherpa-ONNX moves to Phase 8. v1 built the offline stack and reverted it for latency and
   playback glitching; see `decisions.md`.

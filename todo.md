@@ -75,26 +75,47 @@ rest of the phase is finished, so Dev B can start.
 - [ ] `[deva]` Navigation skeleton: Home, Data, Time, Safety, Settings. Shallow, per §24.
 - [ ] `[deva]` Publish core contracts: `Capability`, `CapabilityInput`, `CapabilityResult`,
       `RouterResult`, `StructuredIntent`, and the repository interfaces Dev B binds to.
-- [ ] `[deva]` `.gitignore`, `README.md` stub, and the licence/attribution decision. v1 forked
-      Google AI Edge Gallery under Apache 2.0 and carries `LICENSE` + `NOTICE`. Any v2 code derived
-      from that fork inherits the attribution obligation. Resolve this in `decisions.md` before
-      reusing runtime code.
+- [ ] `[deva]` `.gitignore`, `README.md` stub, and Trace's own `LICENSE`. **Resolved:** v2 derives no
+      code from Google AI Edge Gallery, so nothing is inherited from that fork and there is no
+      `NOTICE` to propagate. See `decisions.md`. The Gemma model's own terms still apply separately.
 - [ ] `[deva]` `./gradlew assembleDebug` green. App installs and opens to an empty home screen.
 - [ ] `[devb]` Setup only: get v1 building locally, read both spec documents, read `for_devb.md`,
       confirm Android Studio and a physical test device work.
 
 ## Phase 1 — Design system and model runtime
 
-- [ ] `[deva]` LiteRT-LM dependency and Gemma 4 E2B model load. Verify Android setup and multimodal
-      support early — PRD §5 flags this as the top risk. Document the fallback path if audio or image
-      input blocks during setup.
-- [ ] `[deva]` Model lifecycle: load once, stay resident for the process lifetime. Never reload per
-      request. Cold load measured ~90-100s on v1's target hardware, so a per-request reload makes the
-      app unusable. This is a hard rule carried from v1.
-- [ ] `[deva]` Model acquisition strategy: bundled asset or first-run download, with progress state
-      and a resumable failure path.
-- [ ] `[deva]` Inference config: max tokens 512-768, temperature 0.4-0.5, topP 0.9, topK 32-40, GPU
-      backend, thinking mode off for latency. Tune against real device numbers, not v1's notes.
+- [ ] `[deva]` Add `com.google.ai.edge.litertlm:litertlm-android`, version pinned exactly in the
+      version catalogue. Google's docs use `latest.release` — resolve it once, then pin it.
+- [ ] `[deva]` Manifest `<uses-native-library>` entries for the GPU backend: `libvndksupport.so` and
+      `libOpenCL.so`, both `android:required="false"`. GPU does not work without them.
+- [ ] `[deva]` `Engine` and `EngineConfig` wrapper. Set `backend = Backend.GPU()`, plus
+      `visionBackend` and `audioBackend` for multimodal input, plus `cacheDir` — the docs say it
+      improves second-load time.
+- [ ] `[deva]` Call `engine.initialize()` off the main thread, behind a load-progress state with a
+      resumable failure path. The docs cite up to ~10s; v1 measured 90-100s on its own hardware and
+      model. Measure ours and write the number down.
+- [ ] `[deva]` Model lifecycle: initialize once, keep the `Engine` resident for the process lifetime,
+      never reload per request. Hard rule carried from v1.
+- [ ] `[deva]` **Verify Gemma 4 E2B `.litertlm` multimodality on a real device. PRD §5's top risk.**
+      The LiteRT-LM docs cite Gemma3n as the multimodal example, not Gemma 4. Confirm the `.litertlm`
+      build actually accepts `Content.ImageBytes` and `Content.AudioBytes` before any feature depends
+      on it. If audio input is unavailable, voice still works — ASR runs separately — but
+      "ask about this image" needs a documented fallback.
+- [ ] `[deva]` Model acquisition: bundled asset or first-run download from the litert-community
+      HuggingFace org, with progress and a resumable failure path. Read the Gemma Terms of Use for
+      whichever build ships.
+- [ ] `[deva]` `ConversationConfig`: `systemInstruction` for the persona, and
+      `SamplerConfig(topK 32-40, topP 0.9, temperature 0.4-0.5)`. Tune against real device numbers,
+      not v1's notes.
+- [ ] `[deva]` Stream with `sendMessageAsync(contents): Flow<Message>`, the docs' preferred path for
+      coroutine code. Not the blocking `sendMessage`.
+- [ ] `[deva]` Try `ExperimentalFlags.enableSpeculativeDecoding = true` before `initialize()`. The
+      docs call multi-token prediction "universally recommended for all tasks on GPU backends".
+      Measure it; drop it if it is unstable.
+- [ ] `[deva]` Evaluate LiteRT-LM's built-in tool calling — a `ToolSet` with `@Tool`/`@ToolParam`
+      reflection, or an `OpenApiTool` with a JSON schema — against hand-rolling a registry as v1 did.
+      Native tool calling is far less code, but it is model-dependent (the docs cite FunctionGemma).
+      Test it with Gemma 4 before committing the router's tool path to it.
 - [ ] `[deva]` System prompt and persona module. Concise by default, 1-2 sentences unless the user
       asks for more — a UX choice and a decode-speed constraint.
 - [ ] `[deva]` Audit log repository and write path. Build this first so every later capability can
