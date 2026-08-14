@@ -12,8 +12,9 @@ import androidx.compose.ui.graphics.Color
  * communicated by colour alone, so [Error] always appears with an icon or a label.
  *
  * Contrast against its own surface, measured: [Olive] on [RicePaper] is 4.8:1 and
- * [OliveDark] on [SumiSurfaceDark] is 6.8:1. Both clear WCAG AA for text and UI
- * components. Do not adjust these values without re-checking the ratio.
+ * [OliveDark] on [SumiSurfaceDark] is 6.8:1. The faint ink tones are 4.9:1 and 5.1:1. All
+ * clear WCAG AA for text and UI components. Do not adjust these values without
+ * re-computing the ratio — "muted" is not a licence to fall below 4.5:1.
  */
 internal object TraceColors {
 
@@ -22,7 +23,14 @@ internal object TraceColors {
     val RicePaperRaised = Color(0xFFF4F1E9)
     val SumiInk = Color(0xFF1A1A18)
     val SumiInkSoft = Color(0xFF4A4A45)
-    val SumiInkFaint = Color(0xFF8A8A82)
+
+    /**
+     * Secondary text and outlines. 4.9:1 on [RicePaper].
+     *
+     * Was #8A8A82, which measured 3.3:1 and failed AA — it looked correctly restrained and
+     * was quietly unreadable, which is the worst combination.
+     */
+    val SumiInkFaint = Color(0xFF6E6E66)
     val Hairline = Color(0xFFE0DCD2)
     val Olive = Color(0xFF6B7248)
     val OliveWash = Color(0xFFE8EADF)
@@ -33,7 +41,9 @@ internal object TraceColors {
     val SumiSurfaceRaisedDark = Color(0xFF1F1F18)
     val RicePaperInkDark = Color(0xFFF0EDE4)
     val RicePaperInkSoftDark = Color(0xFFB8B4A8)
-    val RicePaperInkFaintDark = Color(0xFF7A776D)
+
+    /** Secondary text and outlines. 5.1:1 on [SumiSurfaceDark]. Was #7A776D, at 4.1:1. */
+    val RicePaperInkFaintDark = Color(0xFF8A877E)
     val HairlineDark = Color(0xFF2E2E26)
     val OliveDark = Color(0xFF9AA36E)
     val OliveWashDark = Color(0xFF2A2E1F)

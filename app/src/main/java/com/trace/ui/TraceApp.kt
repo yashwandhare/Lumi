@@ -1,5 +1,7 @@
 package com.trace.ui
 
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -66,6 +68,14 @@ fun TraceApp() {
             navController = navController,
             startDestination = TraceDestination.HOME.route,
             modifier = Modifier.padding(contentPadding),
+            // Tab switches are instant. The default is a cross-fade, which animates alpha
+            // across the whole container — so both destinations are partly transparent at
+            // once and their centred headlines visibly overlap. An opaque screen background
+            // does not help, because the blend happens above it. Switching between peer tabs
+            // is also not a journey that wants a transition, and no animation is the one
+            // behaviour that is automatically correct under reduced-motion settings.
+            enterTransition = { EnterTransition.None },
+            exitTransition = { ExitTransition.None },
         ) {
             composable(TraceDestination.HOME.route) {
                 HomeScreen()

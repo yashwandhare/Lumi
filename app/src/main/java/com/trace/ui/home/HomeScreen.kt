@@ -1,5 +1,6 @@
 package com.trace.ui.home
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -30,6 +31,8 @@ fun HomeScreen(modifier: Modifier = Modifier) {
     Column(
         modifier = modifier
             .fillMaxSize()
+            // Opaque so a navigation cross-fade does not show the outgoing screen through it.
+            .background(MaterialTheme.colorScheme.background)
             .padding(horizontal = MaterialTheme.spacing.screen),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {

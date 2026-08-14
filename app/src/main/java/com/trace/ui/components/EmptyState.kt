@@ -1,5 +1,6 @@
 package com.trace.ui.components
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -30,6 +31,10 @@ fun EmptyState(
     Column(
         modifier = modifier
             .fillMaxSize()
+            // Opaque on purpose. Navigation cross-fades two destinations at once, and a
+            // transparent screen lets the outgoing one show through — two centred headlines
+            // overlapping mid-transition reads as a rendering bug.
+            .background(MaterialTheme.colorScheme.background)
             .padding(horizontal = MaterialTheme.spacing.xxl),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
