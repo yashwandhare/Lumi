@@ -86,6 +86,12 @@ rest of the phase is finished, so Dev B can start.
       v1 Gallery fork, so the choice is genuinely open. Apache 2.0 is the conventional default.
 - [x] `[deva]` `./gradlew assembleDebug` green, `testDebugUnitTest` green, `assembleRelease` green
       with R8 at 1.6MB.
+- [!] `[deva]` **Install on a device and confirm it launches.** Blocked: nothing is attached over adb,
+      and the `Pixel_9_Pro` emulator will not register with the adb daemon in this environment even
+      though `/dev/kvm` is accessible. This needs an arm64 phone plugged in — which Phase 1 requires
+      regardless, because the LiteRT-LM native runtime ships arm64 only and an x86_64 emulator cannot
+      run anything that touches the model. Plug a phone in and run
+      `./gradlew installDebug && adb shell am start -n com.trace/.MainActivity`.
 - [ ] `[devb]` Setup only: get v1 building locally, read both spec documents, read `for_devb.md`,
       confirm Android Studio and a physical test device work.
 
