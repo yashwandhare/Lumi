@@ -31,3 +31,6 @@ captures/
 *.litertlm
 *.tflite
 *.onnx
+
+# Agent operating procedure — local only, not for version control.
+PROLOGUE.md
