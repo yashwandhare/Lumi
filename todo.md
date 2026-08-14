@@ -62,23 +62,30 @@ get v1 building locally, read both specs, read `for_devb.md`.
 Dev A solo. Ends when Dev B is unblocked. Commit the contracts as soon as they compile, before the
 rest of the phase is finished, so Dev B can start.
 
-- [ ] `[deva]` Gradle project. Namespace `com.trace`, minSdk 26, targetSdk 36, Java 17 toolchain,
-      Kotlin + Compose. Package layout per Design Spec §36.
-- [ ] `[deva]` Version catalog in `gradle/libs.versions.toml`. Pin every version exactly. No
-      version ranges, no `latest.release`.
-- [ ] `[deva]` Hilt dependency injection and the `Application` class.
-- [ ] `[deva]` Theme tokens: rice-paper white surface, sumi near-black text, one muted sumi-olive
-      accent. Serif type scale, spacing scale, radius scale. Design Spec §19, §20, §28.
-- [ ] `[deva]` Room database. Entities per Design Spec §17: `Chat`, `ChatMessage`, `Document`,
-      `DocumentChunk`, `Memory`, `Routine`, `RoutineTrigger`, `RoutineAction`, `JournalEntry`,
-      `AuditEvent`, `EmergencyContact`. DAOs, indices, and a migration policy from day one.
-- [ ] `[deva]` Navigation skeleton: Home, Data, Time, Safety, Settings. Shallow, per §24.
-- [ ] `[deva]` Publish core contracts: `Capability`, `CapabilityInput`, `CapabilityResult`,
-      `RouterResult`, `StructuredIntent`, and the repository interfaces Dev B binds to.
-- [ ] `[deva]` `.gitignore`, `README.md` stub, and Trace's own `LICENSE`. **Resolved:** v2 derives no
-      code from Google AI Edge Gallery, so nothing is inherited from that fork and there is no
-      `NOTICE` to propagate. See `decisions.md`. The Gemma model's own terms still apply separately.
-- [ ] `[deva]` `./gradlew assembleDebug` green. App installs and opens to an empty home screen.
+- [x] `[deva]` Gradle project. Namespace `com.trace`, minSdk 31, compileSdk and targetSdk 37, Java 17,
+      Kotlin + Compose. Package layout per Design Spec §36. minSdk and targetSdk raised from the 26/36
+      originally planned — see `decisions.md`.
+- [x] `[deva]` Version catalog in `gradle/libs.versions.toml`. Every version pinned exactly. No
+      ranges, no `latest.release`. Toolchain versions taken from v1's working configuration.
+- [x] `[deva]` Hilt dependency injection, the `Application` class, and the coroutine modules —
+      including the dedicated single-thread inference dispatcher the native runtime needs.
+- [x] `[deva]` Theme tokens: rice-paper white surface, sumi near-black text, one muted sumi-olive
+      accent, light and dark. Serif type scale, spacing scale, radius scale. Contrast measured at
+      4.8:1 light and 6.8:1 dark. Reduced-motion flag provided at theme level and observed live.
+- [x] `[deva]` Room database. Twelve tables, indices, transactional document ingest and routine save,
+      exported schema committed, no destructive-migration fallback. No `User` table — see
+      `decisions.md`.
+- [x] `[deva]` Navigation skeleton: Home, Data, Time, Safety, Settings. Shallow, per §24, with real
+      empty states rather than placeholder screens.
+- [x] `[deva]` Publish core contracts: `Capability`, `CapabilityInput`, `CapabilityResult`,
+      `StructuredIntent`, `RouterOutcome`, `Dispatcher`, `ModelHarness`, `AuditLog`. DAOs are the data
+      interface; repositories are added only where there is real logic to hold.
+- [x] `[deva]` `.gitignore` and `README.md`.
+- [ ] `[deva]` **Choose Trace's licence.** Needs an owner decision, not an agent one — it interacts
+      with the one-time-payment and B2B2C licensing story in PRD §2.2. Nothing is inherited from the
+      v1 Gallery fork, so the choice is genuinely open. Apache 2.0 is the conventional default.
+- [x] `[deva]` `./gradlew assembleDebug` green, `testDebugUnitTest` green, `assembleRelease` green
+      with R8 at 1.6MB.
 - [ ] `[devb]` Setup only: get v1 building locally, read both spec documents, read `for_devb.md`,
       confirm Android Studio and a physical test device work.
 

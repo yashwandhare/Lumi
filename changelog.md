@@ -24,12 +24,31 @@ Bad: `[deva] Updated RoutineWorker.kt and added BootReceiver.kt and modified the
 
 ### Added
 
+- `[deva]` **Phase 0 foundation.** The app now builds, and Dev B is unblocked.
+  - Gradle project on AGP 8.13.0 / Kotlin 2.2.0 / Gradle 9.2.1, namespace `com.trace`, minSdk 31,
+    compileSdk and targetSdk 37, Java 17. Every dependency version pinned exactly.
+  - Theme tokens: rice-paper and sumi palette with one olive accent, light and dark, contrast measured
+    at 4.8:1 and 6.8:1. Serif type scale, spacing scale, radius scale. `LocalReducedMotion` provided at
+    theme level and observed live, so no animation can forget it.
+  - Room database with twelve tables, indices, exported schema committed, and no destructive-migration
+    fallback. Document ingest and routine save are single transactions.
+  - Core contracts: `Capability`, `CapabilityResult`, `StructuredIntent`, `Router`, `RouterOutcome`,
+    `Dispatcher`, `ModelHarness`, and `AuditLog`.
+  - Hilt modules for the database, DAOs, and coroutine dispatchers, including a dedicated single-thread
+    inference dispatcher.
+  - Navigation across Home, Data, Time, Safety, and Settings, with real empty states.
+  - `README.md`, `.gitignore`, and a unit test covering the embedding blob encoding and enum decoding.
 - `[deva]` Planning documents for the v2 rebuild: `todo.md` with the full phase plan and Dev A / Dev B
   split, `decisions.md` seeded with the v1 rules that still bind plus this session's calls,
   `changelog.md`, and `for_devb.md` as Dev B's self-contained brief.
 
 ### Changed
 
+- `[deva]` Dropped `material-icons-extended`. It added 40MB of generated classes to the debug APK for
+  five navigation glyphs — 63MB total, 42MB of it in one dex file. `material-icons-core` brings the
+  debug APK to 30.5MB. The release APK is 1.6MB after R8.
+- `[deva]` minSdk is 31 and targetSdk 37, raised from the 26 and 36 originally planned. A device that
+  can run Gemma 4 E2B locally is Android 12+ in practice.
 - `[deva]` No model may require an access token, a gate, or an account to download. Gemma 4 E2B IT is
   ungated and fetched directly. FunctionGemma and EmbeddingGemma are both gated and therefore ruled
   out. See `decisions.md`.

@@ -330,5 +330,67 @@ Phase 1, then pin it.
 have no time for. Embedding similarity against example phrases is editable by adding a phrase to a
 list, which matters when the router is wrong at 2am on Aug 20.
 
+### [deva] 2026-08-14 — Phase 0 foundation: toolchain and project shape
+
+Versions are taken from v1's working configuration rather than chosen fresh, because v1 demonstrably
+builds in this environment: AGP 8.13.0, Kotlin 2.2.0, Gradle 9.2.1, Compose BOM 2026.02.00, Hilt 2.58,
+KSP 2.3.6. Room 2.8.4 is new — v1 had no Room. Every version is pinned exactly; nothing uses
+`latest.release`.
+
+- **minSdk 31, compileSdk and targetSdk 37, Java 17.** The plan originally said minSdk 26 and
+  targetSdk 36. Raised to match v1, which shipped on 31. A device that can run Gemma 4 E2B locally is
+  an Android 12+ device in practice, so supporting older releases would add compatibility surface for
+  users who cannot run the product's core feature anyway. Java 17 is an upgrade from v1's Java 11.
+- **KSP for both Room and Hilt, no kapt.** v1 used kapt for Hilt. KSP is faster, and build time is a
+  real constraint on a seven-day schedule.
+- **One `:app` module.** Multi-module would buy cleaner boundaries and slower iteration. Package
+  boundaries per Design Spec §36 are enough discipline for two developers over one week.
+- **`material-icons-extended` dropped.** Adding it for five navigation glyphs put 40MB of generated
+  classes into the debug APK: 63MB total, 42MB in `classes.dex` alone. Switching to
+  `material-icons-core` brought the debug APK to 30.5MB. The design system needs a purpose-drawn icon
+  set anyway, so the extended pack was never going to survive.
+
+### [deva] 2026-08-14 — Database: no destructive migrations, and no `User` table
+
+**Migrations are mandatory.** `exportSchema` is on, `app/schemas/` is committed, and
+`fallbackToDestructiveMigration` is deliberately absent. This database holds notes, journal entries,
+and emergency contacts. A destructive migration deletes all of it and the user finds out by opening an
+empty app. During development, uninstall rather than loosening the rule.
+
+**No `User` table**, despite Design Spec §17 listing one. Trace is single-user with no accounts and no
+sign-in, so the table would hold exactly one row and add a join to every query that touched it.
+
+**Enums are stored as names, not ordinals.** Reordering an enum would silently reinterpret every
+existing row. Unknown names decode to a safe default rather than throwing, so a row written by a newer
+build cannot crash an older one mid-session.
+
+**Chunk embeddings live in their own table.** Retrieval scans every vector but needs no chunk text to
+do it. Keeping the vector separate means a search reads ids and blobs only, instead of pulling the
+whole corpus's text through memory on every query; text for the top matches is fetched afterwards in
+one query. Both the document ingest and the routine save are single transactions — a half-indexed
+document would silently return partial context, and a routine with triggers but no actions would arm
+itself and then do nothing.
+
+### [deva] 2026-08-14 — Model harness seam: one owner, serialised, session-optional
+
+The `ModelHarness` interface is defined in Phase 0 even though Phase 1 implements it, so the router,
+the capabilities, and the load UI can all be written against it in parallel.
+
+Three properties are load-bearing:
+
+1. **One owner.** Nothing else in the app touches the inference runtime. A second owner would
+   eventually reload the model, and cold load costs real seconds.
+2. **Serialised through a dedicated single thread.** The native runtime holds one loaded model and one
+   conversation; two coroutines entering it concurrently is a native crash, not a catchable exception.
+   A single-thread dispatcher is what prevents that, and it is an `Executors` one rather than
+   `limitedParallelism`, which is still opt-in experimental API.
+3. **Sessions are optional.** A null session means a one-shot inference with no history and no side
+   effects. Background work — parsing a routine, extracting a reminder — must not appear in the user's
+   chat or disturb its context. v1 needed exactly this and called it a "single silent inference".
+
+`prepare()` never throws; failures land in observable state so every caller sees the same truth and can
+degrade to a non-model path.
+
+
 
 
