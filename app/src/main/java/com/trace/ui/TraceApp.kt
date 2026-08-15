@@ -57,8 +57,12 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.trace.ui.components.EmptyState
+import com.trace.ui.components.hairlineBorder
 import com.trace.ui.home.HomeScreen
 import com.trace.ui.navigation.TraceDestination
+import com.trace.ui.theme.TraceShape
+import com.trace.ui.theme.TraceSize
+import com.trace.ui.theme.spacing
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -82,43 +86,39 @@ fun TraceApp(
                 androidx.compose.runtime.CompositionLocalProvider(androidx.compose.ui.platform.LocalLayoutDirection provides androidx.compose.ui.unit.LayoutDirection.Ltr) {
                     ModalDrawerSheet(
                         drawerContainerColor = MaterialTheme.colorScheme.surface,
-                        drawerShape = androidx.compose.ui.graphics.RectangleShape,
+                        drawerShape = TraceShape.panel,
                         windowInsets = WindowInsets(0),
                         modifier = Modifier
-                            .width(280.dp)
-                            .border(
-                                width = 0.5.dp,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f),
-                                shape = androidx.compose.ui.graphics.RectangleShape
-                            )
+                            .width(TraceSize.drawer)
+                            .hairlineBorder(TraceShape.panel)
                     ) {
                         Column(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .background(MaterialTheme.colorScheme.surface)
-                                .padding(horizontal = 16.dp)
+                                .padding(horizontal = MaterialTheme.spacing.md)
                                 .padding(
-                                    top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 16.dp,
-                                    bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 16.dp
+                                    top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + MaterialTheme.spacing.md,
+                                    bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + MaterialTheme.spacing.md
                                 )
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 8.dp, bottom = 16.dp)) {
-                                Box(modifier = Modifier.size(40.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant)) {
-                                    Icon(Icons.Rounded.History, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.align(Alignment.Center).size(20.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = MaterialTheme.spacing.sm, bottom = MaterialTheme.spacing.md)) {
+                                Box(modifier = Modifier.size(TraceSize.avatar).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant)) {
+                                    Icon(Icons.Rounded.History, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.align(Alignment.Center).size(TraceSize.icon))
                                 }
                                 Spacer(Modifier.width(12.dp))
                                 Text("History", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                             }
                             HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
-                            Spacer(Modifier.height(16.dp))
+                            Spacer(Modifier.height(MaterialTheme.spacing.md))
                             // Empty history placeholder
                             Column(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
-                                Spacer(Modifier.height(32.dp))
+                                Spacer(Modifier.height(MaterialTheme.spacing.xl))
                                 Text("No history yet", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f))
-                                Spacer(Modifier.height(4.dp))
+                                Spacer(Modifier.height(MaterialTheme.spacing.xs))
                                 Text("Past conversations will appear here.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f))
                             }
                             Spacer(Modifier.weight(1f))
@@ -129,14 +129,14 @@ fun TraceApp(
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(12.dp))
                                     .background(MaterialTheme.colorScheme.surfaceVariant)
-                                    .border(0.5.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f), RoundedCornerShape(12.dp))
+                                    .hairlineBorder(RoundedCornerShape(12.dp))
                                     .clickable { }
-                                    .padding(horizontal = 16.dp, vertical = 13.dp),
+                                    .padding(horizontal = MaterialTheme.spacing.md, vertical = 13.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.Center
                             ) {
                                 Icon(Icons.Rounded.Add, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(18.dp))
-                                Spacer(Modifier.width(8.dp))
+                                Spacer(Modifier.width(MaterialTheme.spacing.sm))
                                 Text("New Chat", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium)
                             }
                         }
@@ -150,15 +150,11 @@ fun TraceApp(
                     drawerContent = {
                         ModalDrawerSheet(
                             drawerContainerColor = MaterialTheme.colorScheme.surface,
-                            drawerShape = androidx.compose.ui.graphics.RectangleShape,
+                            drawerShape = TraceShape.panel,
                             windowInsets = WindowInsets(0),
                             modifier = Modifier
-                                .width(280.dp)
-                                .border(
-                                    width = 0.5.dp,
-                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f),
-                                    shape = androidx.compose.ui.graphics.RectangleShape
-                                )
+                                .width(TraceSize.drawer)
+                                .hairlineBorder(TraceShape.panel)
                         ) {
                             AppDrawerContent(
                                 currentRoute = currentRoute,
@@ -243,15 +239,15 @@ fun TraceApp(
                 }
                 composable(TraceDestination.SETTINGS.route) {
                     Column(
-                        modifier = Modifier.fillMaxSize().padding(16.dp),
+                        modifier = Modifier.fillMaxSize().padding(MaterialTheme.spacing.md),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
                         Text("Settings", style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.onBackground)
-                        Spacer(Modifier.height(32.dp))
+                        Spacer(Modifier.height(MaterialTheme.spacing.xl))
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text("Dark Mode", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onBackground)
-                            Spacer(Modifier.width(16.dp))
+                            Spacer(Modifier.width(MaterialTheme.spacing.md))
                             Box(modifier = Modifier.scale(0.78f)) {
                             androidx.compose.material3.Switch(
                                 checked = isDarkTheme,
@@ -277,15 +273,15 @@ private fun AppDrawerContent(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 16.dp)
+            .padding(horizontal = MaterialTheme.spacing.md)
             .padding(
-                top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 16.dp,
-                bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 16.dp
+                top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + MaterialTheme.spacing.md,
+                bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + MaterialTheme.spacing.md
             )
     ) {
         // Profile Section
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 8.dp, bottom = 16.dp)) {
-            Box(modifier = Modifier.size(40.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant)) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = MaterialTheme.spacing.sm, bottom = MaterialTheme.spacing.md)) {
+            Box(modifier = Modifier.size(TraceSize.avatar).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant)) {
                 Text("U", color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.align(Alignment.Center), style = MaterialTheme.typography.titleSmall)
             }
             Spacer(Modifier.width(12.dp))
@@ -293,27 +289,27 @@ private fun AppDrawerContent(
         }
 
         HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(MaterialTheme.spacing.md))
 
         DrawerRow(label = "Home", selected = currentRoute == TraceDestination.HOME.route, onClick = { onNavigate(TraceDestination.HOME) }, icon = Icons.Rounded.Home)
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(MaterialTheme.spacing.xs))
         DrawerRow(label = "Memory", selected = currentRoute == TraceDestination.MEMORY.route, onClick = { onNavigate(TraceDestination.MEMORY) }, icon = Icons.Rounded.NoteAlt)
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(MaterialTheme.spacing.xs))
         DrawerRow(label = "Notes", selected = currentRoute == TraceDestination.NOTES.route, onClick = { onNavigate(TraceDestination.NOTES) }, icon = Icons.Rounded.Edit)
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(MaterialTheme.spacing.xs))
         DrawerRow(label = "Routine", selected = currentRoute == TraceDestination.ROUTINE.route, onClick = { onNavigate(TraceDestination.ROUTINE) }, icon = Icons.Rounded.Event)
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(MaterialTheme.spacing.xs))
         DrawerRow(label = "Journal", selected = currentRoute == TraceDestination.JOURNAL.route, onClick = { onNavigate(TraceDestination.JOURNAL) }, icon = Icons.Rounded.Book)
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(MaterialTheme.spacing.xs))
         DrawerRow(label = "Lists", selected = currentRoute == TraceDestination.LISTS.route, onClick = { onNavigate(TraceDestination.LISTS) }, icon = Icons.AutoMirrored.Rounded.List)
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(MaterialTheme.spacing.xs))
         DrawerRow(label = "Model Parameters", selected = currentRoute == TraceDestination.MODEL_PARAMETERS.route, onClick = { onNavigate(TraceDestination.MODEL_PARAMETERS) }, icon = Icons.Rounded.Tune)
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(MaterialTheme.spacing.xs))
         DrawerRow(label = "Search Scope", selected = currentRoute == TraceDestination.SEARCH_SCOPE.route, onClick = { onNavigate(TraceDestination.SEARCH_SCOPE) }, icon = Icons.Rounded.FindInPage)
 
         Spacer(Modifier.weight(1f))
         HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(MaterialTheme.spacing.sm))
         DrawerRow(label = "Settings", selected = currentRoute == TraceDestination.SETTINGS.route, onClick = { onNavigate(TraceDestination.SETTINGS) }, icon = Icons.Rounded.Settings)
     }
 }
@@ -340,8 +336,16 @@ private fun DrawerRow(
         Icon(
             icon,
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = if (selected) 0.9f else 0.5f),
-            modifier = Modifier.size(20.dp),
+            // DESIGN_LANGUAGE §2 lists the selected drawer row among the four places the accent is
+            // allowed. Selection is still carried by the row's fill and the label's weight, so the
+            // colour is a third channel rather than the only one — §3 and for_devb.md both require
+            // that nothing be conveyed by colour alone.
+            tint = if (selected) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+            },
+            modifier = Modifier.size(TraceSize.icon),
         )
         Spacer(Modifier.width(14.dp))
         Text(

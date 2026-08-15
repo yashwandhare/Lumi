@@ -17,7 +17,10 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.trace.ui.components.TraceBlob
+import com.trace.ui.components.TraceGlassPanel
 import com.trace.ui.components.TraceInput
+import com.trace.ui.components.BORDER_ALPHA
+import com.trace.ui.theme.spacing
 import java.util.Calendar
 import androidx.compose.animation.animateContentSize
 
@@ -124,8 +127,8 @@ fun AttachmentBottomSheet(onDismiss: () -> Unit) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(0.5.dp)
-                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f))
+                .height(com.trace.ui.theme.TraceSize.hairline)
+                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = BORDER_ALPHA))
         )
         Column(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp),
@@ -155,15 +158,12 @@ fun AttachmentBottomSheet(onDismiss: () -> Unit) {
             
             Spacer(Modifier.height(24.dp))
             
-            val webRowShape = RoundedCornerShape(16.dp)
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(webRowShape)
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f), webRowShape)
-                    .border(0.5.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f), webRowShape)
+            val webRowShape = com.trace.ui.theme.TraceShape.default
+            TraceGlassPanel(
+                modifier = Modifier.fillMaxWidth(),
+                shape = webRowShape,
             ) {
-                Row(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(modifier = Modifier.padding(horizontal = MaterialTheme.spacing.md, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Rounded.Public, contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
                     Spacer(Modifier.width(14.dp))
                     Text("Web search", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
@@ -190,21 +190,17 @@ fun AttachmentBottomSheet(onDismiss: () -> Unit) {
 
 @Composable
 fun AttachmentOption(icon: ImageVector, label: String, modifier: Modifier = Modifier) {
-    val shape = RoundedCornerShape(20.dp)
-    Box(
-        modifier = modifier
-            .height(96.dp)
-            .clip(shape)
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f), shape)
-            .border(0.5.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f), shape),
-        contentAlignment = Alignment.Center
+    TraceGlassPanel(
+        modifier = modifier.height(com.trace.ui.theme.TraceSize.tile),
+        shape = com.trace.ui.theme.TraceShape.tile,
     ) {
         Column(
+            modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
             Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(24.dp))
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(MaterialTheme.spacing.sm))
             Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurface)
         }
     }

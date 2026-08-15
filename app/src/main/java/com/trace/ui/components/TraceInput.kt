@@ -1,11 +1,6 @@
 package com.trace.ui.components
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -16,11 +11,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.animation.animateContentSize
+import com.trace.ui.theme.TraceShape
+import com.trace.ui.theme.spacing
 
 @Composable
 fun TraceInput(
@@ -33,21 +28,18 @@ fun TraceInput(
     showAttach: Boolean = true,
     onAttach: () -> Unit = {},
 ) {
-    val shape = RoundedCornerShape(28.dp)
+    val shape = TraceShape.input
 
-    Box(
+    TraceGlassPanel(
         modifier = modifier
             .fillMaxWidth()
-            .clip(shape)
-            // Frosted glass background
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.70f), shape)
-            .border(0.5.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f), shape)
-            .animateContentSize()
+            .animateContentSize(),
+        shape = shape,
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 6.dp)
+                .padding(horizontal = MaterialTheme.spacing.md, vertical = MaterialTheme.spacing.xs)
         ) {
             TextField(
                 value = value,
@@ -80,68 +72,54 @@ fun TraceInput(
             )
 
             Row(
-                modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(
+                        start = MaterialTheme.spacing.md,
+                        end = MaterialTheme.spacing.md,
+                        bottom = MaterialTheme.spacing.sm,
+                    ),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (showAttach) {
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.07f), CircleShape)
-                            .border(0.5.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f), CircleShape)
-                            .clip(CircleShape)
-                            .clickable(onClick = onAttach),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            Icons.Rounded.Add,
-                            contentDescription = "Attach",
-                            tint = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.size(22.dp)
-                        )
-                    }
+                    TraceIconButton(
+                        icon = Icons.Rounded.Add,
+                        contentDescription = "Attach",
+                        onClick = onAttach,
+                        bordered = true,
+                        iconSize = 22.dp,
+                    )
                 }
-                
+
                 Spacer(Modifier.weight(1f))
 
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.88f), CircleShape)
-                        .clip(CircleShape)
-                        .clickable(onClick = { /* TODO Audio */ }),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Rounded.GraphicEq,
-                        contentDescription = "Audio",
-                        tint = MaterialTheme.colorScheme.surface,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
+                TraceIconButton(
+                    icon = Icons.Rounded.GraphicEq,
+                    contentDescription = "Audio",
+                    onClick = { /* TODO Audio */ },
+                    container = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.88f),
+                    tint = MaterialTheme.colorScheme.surface,
+                )
 
-                Spacer(Modifier.width(12.dp))
+                Spacer(Modifier.width(MaterialTheme.spacing.md))
 
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .background(
-                            if (value.isNotBlank()) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
-                            CircleShape
-                        )
-                        .clip(CircleShape)
-                        .clickable { if (value.isNotBlank()) onSendText(value) },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Rounded.ArrowUpward,
-                        contentDescription = "Send",
-                        tint = if (value.isNotBlank()) MaterialTheme.colorScheme.onPrimary
-                               else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
+                val canSend = value.isNotBlank()
+                TraceIconButton(
+                    icon = Icons.Rounded.ArrowUpward,
+                    contentDescription = "Send",
+                    onClick = { onSendText(value) },
+                    container = if (canSend) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
+                    },
+                    tint = if (canSend) {
+                        MaterialTheme.colorScheme.onPrimary
+                    } else {
+                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f)
+                    },
+                    enabled = canSend,
+                )
             }
         }
     }
