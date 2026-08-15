@@ -1,8 +1,8 @@
-# Trace
+# Lumi
 
 The private, on-device automation layer for Android.
 
-Trace turns your notes, routines, files, and daily logs into things a local model can act on. All
+Lumi turns your notes, routines, files, and daily logs into things a local model can act on. All
 inference, storage, and retrieval happen on the device. Nothing is uploaded.
 
 Built on Gemma 4 E2B via LiteRT-LM, with Kotlin, Jetpack Compose, Room, and WorkManager.
@@ -29,7 +29,7 @@ only, so an x86_64 emulator cannot run anything that touches the model.
 ## Layout
 
 ```
-app/src/main/java/com/trace/
+app/src/main/java/com/lumi/
 ├── core/          contracts every layer binds to — Capability, Router, ModelHarness, AuditLog
 ├── data/local/    Room entities, DAOs, database
 ├── di/            Hilt modules

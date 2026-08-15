@@ -1,4 +1,4 @@
-# Trace v2 — Decisions
+# Lumi v2 — Decisions
 
 Running record of *why* choices were made, so they are not re-litigated later without cause.
 
@@ -53,7 +53,7 @@ privacy-first pitch.
 
 ### [deva] Carried — RAG ingests only what the user explicitly attaches
 
-Ingestion happens when the user attaches a file in chat or selects one directly. Trace never performs a
+Ingestion happens when the user attaches a file in chat or selects one directly. Lumi never performs a
 background scan of device storage.
 
 **Why:** it is the honest behaviour for a privacy product, and it sidesteps Android 13+ scoped-storage
@@ -96,7 +96,7 @@ spoken cancel all end it immediately.
 
 ### [deva] Carried — Journaling is pattern surfacing, not companionship
 
-Trace logs entries locally and may surface patterns that suggest a routine. It must never present
+Lumi logs entries locally and may surface patterns that suggest a routine. It must never present
 itself as a therapist, a mental health provider, an emotional companion, or a crisis detection system.
 
 **Why:** a 2B on-device model cannot reliably recognize a real mental health crisis, and the
@@ -179,7 +179,7 @@ time-boxed hacks that should not survive into a production build.
 **Note:** v1's reconstruction guide actively encouraged copying. That guidance is superseded for v2 by
 the owner's instruction.
 
-### [deva] 2026-08-14 — Package namespace is `com.trace`, not v1's `com.trace.app`
+### [deva] 2026-08-14 — Package namespace is `com.lumi`, not v1's `com.lumi.app`
 
 **Why:** Design Spec §36 specifies the flat layout. v2 is a fresh project, so there is no migration
 cost, and keeping the `.app` segment would only exist to match files that are not being copied anyway.
@@ -241,7 +241,7 @@ something a person chose.
 ### [deva] 2026-08-14 — Resolved: build against the LiteRT-LM Kotlin API, drop the Gallery fork entirely
 
 Supersedes the open attribution question above. **No v2 code derives from Google AI Edge Gallery.**
-Trace v2 depends on the published LiteRT-LM Android artifact and nothing else from Google's samples.
+Lumi v2 depends on the published LiteRT-LM Android artifact and nothing else from Google's samples.
 
 ```kotlin
 implementation("com.google.ai.edge.litertlm:litertlm-android:<pinned version>")
@@ -261,7 +261,7 @@ engine.createConversation(ConversationConfig(systemInstruction, samplerConfig)).
 
 Writing our own thin wrapper over that is ordinary API use, not derivation from a sample app. There is
 therefore no Apache 2.0 source-attribution obligation inherited from the Gallery, and no `NOTICE` to
-propagate from it. Trace picks its own licence.
+propagate from it. Lumi picks its own licence.
 
 **The distinction that resolves it:** depending on Google's Maven artifacts creates no
 source-attribution obligation on our code — every Android app depends on dozens of Apache 2.0
@@ -278,7 +278,7 @@ version in the version catalogue.
 
 ### [deva] 2026-08-14 — No model may require an access token to download
 
-Every model Trace ships or fetches must be reachable without a Hugging Face token, without accepting a
+Every model Lumi ships or fetches must be reachable without a Hugging Face token, without accepting a
 gate, and without an account.
 
 **Why:** a token is a credential. Shipping one in an APK leaks it; asking a user for one makes the app
@@ -357,7 +357,7 @@ KSP 2.3.6. Room 2.8.4 is new — v1 had no Room. Every version is pinned exactly
 and emergency contacts. A destructive migration deletes all of it and the user finds out by opening an
 empty app. During development, uninstall rather than loosening the rule.
 
-**No `User` table**, despite Design Spec §17 listing one. Trace is single-user with no accounts and no
+**No `User` table**, despite Design Spec §17 listing one. Lumi is single-user with no accounts and no
 sign-in, so the table would hold exactly one row and add a join to every query that touched it.
 
 **Enums are stored as names, not ordinals.** Reordering an enum would silently reinterpret every
@@ -391,7 +391,7 @@ Three properties are load-bearing:
 `prepare()` never throws; failures land in observable state so every caller sees the same truth and can
 degrade to a non-model path.
 
-### [deva] 2026-08-15 — Resolved: Trace is Apache 2.0
+### [deva] 2026-08-15 — Resolved: Lumi is Apache 2.0
 
 The open licence question from Phase 0 is settled by the owner: **Apache 2.0**, `LICENSE` in the
 repository root. Nothing was inherited from the v1 Gallery fork, so this was a free choice rather than
@@ -407,7 +407,7 @@ Written by Dev B on the `devb` branch and folded into this file when `devb` merg
 
 ### [devb] 2026-08-15 — `DESIGN_LANGUAGE.md` supersedes the Design Specification's UI sections
 
-The owner ruled that `Trace — Design Specification.docx` is **mostly deprecated for UI**, because
+The owner ruled that `Lumi — Design Specification.docx` is **mostly deprecated for UI**, because
 `DESIGN_LANGUAGE.md` has drifted from it deliberately. Every UI component, optimization, and
 presentation-layer decision resolves against `DESIGN_LANGUAGE.md`. The docx stays authoritative for
 non-UI matters: architecture, data model, capability contracts, testing.
@@ -449,14 +449,14 @@ the resting pose — a mascot stopped mid-squash looks broken; one at rest looks
 
 ### [devb] 2026-08-15 — Dev A's baseline UI is amended in place, never re-implemented
 
-`TraceBlob`, `TraceInput`, `HomeScreen`, and the sidebars are changed by the smallest diff that
+`LumiBlob`, `LumiInput`, `HomeScreen`, and the sidebars are changed by the smallest diff that
 satisfies `DESIGN_LANGUAGE.md`, and new components adopt their style rather than introducing a second.
 
 **Why:** a rewrite of a working component is unreviewable — the original author cannot tell a bug fix
 from a preference, so every line becomes a negotiation. A small diff against a file they wrote is
 legible in a minute.
 
-**Recorded because it cost work.** A full `TraceBlob` rewrite (+332/-226) was written and reverted under
+**Recorded because it cost work.** A full `LumiBlob` rewrite (+332/-226) was written and reverted under
 this rule. It compiled and fixed four real defects, but it replaced the whole file. Those defects were
 then re-approached as a targeted diff. One item was deliberately **not** carried across and is still
 open: the gradient radius is a fixed `120f` rather than computed from density, so the mascot's gloss
@@ -470,7 +470,7 @@ correct at once. The tokens now match §5.
 
 **Consequence, stated plainly:** `EmptyState.kt` was the only reader, so its padding changed —
 visibly. Made because §5 is authoritative, not because the old spacing looked wrong. `xxxl`, `screen`,
-and `gutter` were removed as unreferenced and undefined by §5; `hairline` moved to `TraceSize` at its
+and `gutter` were removed as unreferenced and undefined by §5; `hairline` moved to `LumiSize` at its
 real used value of 0.5dp rather than the declared 1dp.
 
 ### [devb] 2026-08-15 — Nine sidebar destinations is the intended set, not a shortfall
@@ -537,7 +537,7 @@ The setup screen waits for consent when the model is absent and starts immediate
 asking. But prompting a user to "download" something they already have is the worse bug — a returning
 user should see a load bar, not a download prompt.
 
-**The gate lives in `MainActivity`, above `TraceApp` and its NavHost.** Putting it in the nav graph would
+**The gate lives in `MainActivity`, above `LumiApp` and its NavHost.** Putting it in the nav graph would
 let the drawer and routes appear before the model exists, making "did the model load" a navigation
 question rather than a lifecycle one.
 
@@ -557,9 +557,9 @@ run the model is told so honestly, with the rest of the app still usable.
 
 The Phase 0 entry above dropped `material-icons-extended` because it put 40MB of generated classes into
 the debug APK — 63MB total, 42MB in one dex file — against `material-icons-core` at 30.5MB. **The owner
-has ruled that it stays.** Trace's UI needs the icons.
+has ruled that it stays.** Lumi's UI needs the icons.
 
-**Why the reversal is right:** `TraceApp` and `HomeScreen` between them use `NoteAlt`, `Event`, `Book`,
+**Why the reversal is right:** `LumiApp` and `HomeScreen` between them use `NoteAlt`, `Event`, `Book`,
 `Tune`, `FindInPage`, `History`, `GraphicEq`, `CameraAlt`, `PhotoLibrary`, `UploadFile`, and `Public`.
 None are in `material-icons-core`, so the alternative was hand-drawing eleven glyphs or shipping a
 navigation drawer with wrong icons. R8 strips the unused ones from release, so the cost is a debug-build
@@ -648,3 +648,43 @@ alternative is a precise-looking number that is quietly wrong, which is worse th
 **Measured from the first token, not from the send.** Prefill on a 2B model is a second or more, and
 folding it into the rate would report a figure unrelated to how fast text actually appears.
 Time-to-first-token is reported separately, and only when it is slow enough to be the story.
+
+### [deva] 2026-08-15 — The app is renamed Lumi
+
+Everything user-facing and everything in code: `com.lumi` namespace and applicationId, `LumiApp`,
+`LumiBlob`, `LumiDatabase`, `LumiPersona` and the rest, `lumi.db`, `lumi_settings`, the Gradle project
+name, the app label, both spec documents, and all four project logs.
+
+**Three things were deliberately not renamed:**
+
+1. **References to Trace v1 and Trace-beta.** That is the name of a real checkout on disk and of the
+   project this one descends from. Renaming it would make the reuse inventory in `todo.md` point at a
+   directory nobody has, and would rewrite history that is still being read.
+2. **The word "trace" where it is not the product** — "stack traces" in the audit-log documentation, and
+   the debugging workflow in the agent operating procedure. A blanket search-and-replace turned
+   "Reproduce → Trace → Identify root cause" into "Reproduce → Lumi", which is how a rename quietly
+   corrupts prose.
+3. **`com.trace.app`**, v1's installed package on the test device. Left alone; it is a different app.
+
+**The rename forced a re-download.** A new `applicationId` means a new app-private data directory, so the
+2.6GB model does not carry over. It was already gone — the instrumented test run had reinstalled over the
+app and wiped its data, which is the hazard `decisions.md` records about never using `adb uninstall` in
+the dev loop. Worth stating plainly: **any change to `applicationId` costs every user their model.**
+
+### [deva] 2026-08-15 — Space required for the model is ~3.5GB, not 2.6GB
+
+`ModelDownloader` demanded 2.6GB plus 256MB of slack. The real figure is larger, and the gap was a real
+bug: a phone with 3GB free would pass the check, spend 2.6GB of the user's data, and then have no room to
+load what it fetched.
+
+**Why:** the harness passes `cacheDir = null` — it has to, since a cache directory stopped the model
+loading on GPU at all — so the runtime writes its compilation caches beside the model instead. Measured
+on the test device: `xnnpack_cache_*` at ~788MB, an MTP drafter cache at ~44MB, a program cache at ~13MB,
+and some small `.bin` files. Roughly 850MB on top of 2.59GB of weights.
+
+Headroom is now 1.1GB, and the out-of-space message states the real total rather than the download size.
+
+**Two related fixes came out of the same measurement.** `ModelStore.clear()` deleted three named files
+and left ~600MB of generated caches orphaned with nothing that would ever remove them — it now deletes
+the directory. And `bytesOnDisk()` reports weights plus caches together, shown in Settings, because a
+user auditing why the app holds 3.4GB deserves the real number rather than the one they agreed to.

@@ -1,4 +1,4 @@
-# Trace v2 — Decisions (Dev B)
+# Lumi v2 — Decisions (Dev B)
 
 Staging area only. Dev B appends here on the `devb` branch; Dev A folds the entries into `decisions.md`
 at each merge, prefixes intact, and empties this file.

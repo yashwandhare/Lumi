@@ -1,4 +1,4 @@
-# Trace v2 — TODO
+# Lumi v2 — TODO
 
 Single source of truth for what gets built, in what order, and by whom. Dev A maintains this file.
 Dev B proposes changes to it through the process in `for_devb.md`; Dev A merges them.
@@ -6,7 +6,7 @@ Dev B proposes changes to it through the process in `for_devb.md`; Dev A merges 
 - **Deadline:** app complete Aug 21 2026, morning — including rebuild documentation.
 - **Hackathon:** Aug 22 2026.
 - **Planning started:** Aug 14 2026, 19:00.
-- **Specs:** `Trace_PRD_v2.docx` and `Trace — Design Specification.docx`. Both are authoritative.
+- **Specs:** `Lumi_PRD_v2.docx` and `Lumi — Design Specification.docx`. Both are authoritative.
   Where they disagree with each other or with reality, this file records the resolution and
   `decisions.md` records why.
 - **UI spec:** `DESIGN_LANGUAGE.md` **supersedes the Design Specification's UI sections.** The owner
@@ -70,7 +70,7 @@ get v1 building locally, read both specs, read `for_devb.md`.
 Dev A solo. Ends when Dev B is unblocked. Commit the contracts as soon as they compile, before the
 rest of the phase is finished, so Dev B can start.
 
-- [x] `[deva]` Gradle project. Namespace `com.trace`, minSdk 31, compileSdk and targetSdk 37, Java 17,
+- [x] `[deva]` Gradle project. Namespace `com.lumi`, minSdk 31, compileSdk and targetSdk 37, Java 17,
       Kotlin + Compose. Package layout per Design Spec §36. minSdk and targetSdk raised from the 26/36
       originally planned — see `decisions.md`.
 - [x] `[deva]` Version catalog in `gradle/libs.versions.toml`. Every version pinned exactly. No
@@ -90,7 +90,7 @@ rest of the phase is finished, so Dev B can start.
       `StructuredIntent`, `RouterOutcome`, `Dispatcher`, `ModelHarness`, `AuditLog`. DAOs are the data
       interface; repositories are added only where there is real logic to hold.
 - [x] `[deva]` `.gitignore` and `README.md`.
-- [x] `[deva]` **Choose Trace's licence.** Resolved by the owner: **Apache 2.0**. `LICENSE` is in the
+- [x] `[deva]` **Choose Lumi's licence.** Resolved by the owner: **Apache 2.0**. `LICENSE` is in the
       repository root. Nothing was inherited from the v1 Gallery fork, so this was a free choice.
 - [x] `[deva]` `./gradlew assembleDebug` green, `testDebugUnitTest` green, `assembleRelease` green
       with R8 at 1.6MB.
@@ -98,7 +98,7 @@ rest of the phase is finished, so Dev B can start.
       **Motorola moto g54 5G** (`ZD222FFWFC`), Android 15 / SDK 35, `arm64-v8a`, 7.8GB RAM, 35GB free —
       so the LiteRT-LM arm64-only native runtime can actually run. `adb` is at
       `/home/yash/android-sdk/platform-tools/adb` and is **not on `PATH`**; export it per shell. Deploy
-      with `./gradlew installDebug && adb shell am start -n com.trace/.MainActivity`.
+      with `./gradlew installDebug && adb shell am start -n com.lumi/.MainActivity`.
 - [x] `[devb]` Setup only: v1 builds locally, both spec documents read, `for_devb.md` read, device
       confirmed working over adb. **Note:** `DESIGN_LANGUAGE.md` now supersedes the Design
       Specification's UI sections — see `decisions_devb.md`.
@@ -142,12 +142,12 @@ Executed end to end by Dev B on the owner's reassignment, including the `[deva]`
 - [ ] `[deva]` Pick and bundle the embedding model as an APK asset. Untouched — there is no `assets/`
       directory and nothing references `TextEmbedder` or ONNX Runtime. **This blocks router tier 2 and
       all of RAG**, so it is the first thing Phase 2 needs.
-- [x] `[deva]` System prompt and persona module. `TracePersona.SYSTEM`, shared by the chat path and
+- [x] `[deva]` System prompt and persona module. `LumiPersona.SYSTEM`, shared by the chat path and
       every background one so the persona cannot drift between them.
 - [~] `[deva]` Audit log repository and write path. `AuditLog` exists from Phase 0 and is tested, but
       **nothing writes to it yet** — no capability calls `record`. The chat capability now exists and is
       the first that should. Wire it before Phase 3 adds routines, or the log starts life incomplete.
-- [~] `[devb]` Component library. `TraceGlassPanel`, `TraceIconButton`, `TraceInput`, `TraceBlob`,
+- [~] `[devb]` Component library. `LumiGlassPanel`, `LumiIconButton`, `LumiInput`, `LumiBlob`,
       `MarkdownText`, and the three state components exist with shared tokens. Cards, dialogs, and chips
       do not; sliders are in use on the settings screen but unstyled.
 - [x] `[devb]` Mascot composable. The fantasy slime per `DESIGN_LANGUAGE.md` §6, with a gradient body,
@@ -200,7 +200,7 @@ The router is the architectural centre of the product. Everything else dispatche
 - [x] `[devb]` Chat screen: message list, streaming markdown render, follow-scroll that yields to touch,
       status verb while generating, reply timings. Attachment chips still to do — the attach sheet opens
       but nothing is picked up from it yet.
-- [ ] `[devb]` Interpreted-intent surface. Where an action has consequence, show what Trace
+- [ ] `[devb]` Interpreted-intent surface. Where an action has consequence, show what Lumi
       understood before it acts.
 - [ ] `[devb]` Navigation wiring for the Data, Time, and Safety sections.
 
@@ -233,7 +233,7 @@ silent and turn on wifi."
 - [ ] `[devb]` Routine list and detail screens.
 - [ ] `[devb]` Glance home-screen widget. Quick invoke, command entry, routine creation. Must match
       the app exactly: the same surfaces, the one Slime Blue accent, the mascot, the same spacing and
-      interaction states per `DESIGN_LANGUAGE.md`. Sparse. It should read as a piece of Trace, not a
+      interaction states per `DESIGN_LANGUAGE.md`. Sparse. It should read as a piece of Lumi, not a
       second product.
 
 ## Phase 4 — RAG and Canvas
@@ -360,7 +360,7 @@ the first commit of this phase rather than rediscovering them.
 - [ ] `[deva]` Journal entries in Room. Private, local, never uploaded.
 - [ ] `[deva]` Pattern surfacing over logged entries, producing an optional routine suggestion:
       "You've logged poor sleep four times this week. Set a wind-down routine?"
-- [ ] `[deva]` **Journaling scope guard.** Trace must never present itself as a therapist, a mental
+- [ ] `[deva]` **Journaling scope guard.** Lumi must never present itself as a therapist, a mental
       health provider, an emotional companion, or a crisis detection system. This is data pattern
       surfacing that feeds automation. Do not build proactive emotional support or crisis detection.
       PRD §3.9 is explicit and it is a liability boundary, not a style note.
@@ -379,7 +379,7 @@ Aug 20 night through Aug 21 morning. No new features. None.
 - [ ] `[both]` Crash pass, ANR pass, memory pass. Watch for OOM on image-heavy paths.
 - [ ] `[both]` Cold start and model load timing measured and written down.
 - [ ] `[both]` Permission-denied path for every permission the app requests.
-- [ ] `[deva]` **Rebuild documentation.** Required deliverable. How to rebuild Trace v2 from empty:
+- [ ] `[deva]` **Rebuild documentation.** Required deliverable. How to rebuild Lumi v2 from empty:
       environment, model acquisition, phase order, and the non-obvious decisions with their reasons.
 - [ ] `[deva]` Architecture document reflecting what was actually built, not what was planned.
 - [ ] `[deva]` Fold Dev B's decision and changelog entries into the main files.

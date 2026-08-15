@@ -20,6 +20,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Trace"
+rootProject.name = "Lumi"
 
 include(":app")

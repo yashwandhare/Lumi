@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Trace holds notes, documents, journal entries, routines, and emergency contacts.
+  Lumi holds notes, documents, journal entries, routines, and emergency contacts.
   None of it is uploaded, so none of it goes into cloud backup or device transfer
   either. android:allowBackup is already false; this file makes the intent explicit
   for the transfer path too.

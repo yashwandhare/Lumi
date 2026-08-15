@@ -44,7 +44,7 @@ androidx-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-man
 androidx-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
 androidx-material3 = { group = "androidx.compose.material3", name = "material3" }
 # Both icon sets are BOM-managed, so neither carries an explicit version.
-# The extended set is needed: TraceApp and HomeScreen use eleven glyphs the core set
+# The extended set is needed: LumiApp and HomeScreen use eleven glyphs the core set
 # does not carry. It costs ~40MB in the debug APK; R8 strips the unused ones from
 # release, so the cost is debug-build only. See decisions.md.
 androidx-material-icons-core = { group = "androidx.compose.material", name = "material-icons-core" }

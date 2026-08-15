@@ -1,4 +1,4 @@
-# Trace v2 — Changelog
+# Lumi v2 — Changelog
 
 Major changes only. This is a record of what changed in the product, written for a person catching up —
 not a mirror of the git log.
@@ -52,7 +52,7 @@ Bad: `[deva] Updated RoutineWorker.kt and added BootReceiver.kt and modified the
   several failed attempts rather than one in progress.
 - `[deva]` **The mascot docks beside the menu button** once a conversation starts, keeps reacting, and
   gives the centre of the screen to the transcript. Switchable off with **Live mascot** in settings.
-- `[deva]` **A real onboarding screen.** Introduces Trace and three concrete things it does before
+- `[deva]` **A real onboarding screen.** Introduces Lumi and three concrete things it does before
   asking for a 2.6GB download, rather than leading with a size and a button.
 - `[deva]` **Download speed** on the setup screen, smoothed and only shown once the sample is long
   enough to be honest. No time estimate — a remaining-time figure over an unknown connection is wrong
@@ -66,7 +66,7 @@ Bad: `[deva] Updated RoutineWorker.kt and added BootReceiver.kt and modified the
   which let a truncated file through to the native loader and read as "the app is broken". Downloads
   resume from a `.part` file with a `Range` request and classify failures as retryable or permanent.
 - `[devb]` **`ModelSetupScreen` gates the app on first run.** `MainActivity` observes
-  `ModelHarness.state` and hands off to `TraceApp` once `Ready`. A returning user whose model is on disk
+  `ModelHarness.state` and hands off to `LumiApp` once `Ready`. A returning user whose model is on disk
   passes through in a moment — it loads, not downloads.
 - `[devb]` **Manifest: `INTERNET` and `ACCESS_NETWORK_STATE`** — used only by the one-time model
   download — plus four `uses-native-library` entries at `required="false"` that the GPU backend dlopens
@@ -75,17 +75,17 @@ Bad: `[deva] Updated RoutineWorker.kt and added BootReceiver.kt and modified the
   `LoadingState` takes the operation as a required argument so "Loading…" cannot be written by accident;
   `ErrorState` takes what happened, what to do, and what partly completed as three separate parameters
   so none can be skipped.
-- `[devb]` **`TraceGlassPanel`, `TraceIconButton`, and a `hairlineBorder` modifier** — the first of the
+- `[devb]` **`LumiGlassPanel`, `LumiIconButton`, and a `hairlineBorder` modifier** — the first of the
   component library, extracted from what was already on screen rather than invented.
-- `[devb]` **Shared design tokens.** `TraceMotion` holds every duration and easing; `TraceShape` names
-  radii by role because Material's small/medium/large ramp cannot express one; `TraceSize` holds fixed
+- `[devb]` **Shared design tokens.** `LumiMotion` holds every duration and easing; `LumiShape` names
+  radii by role because Material's small/medium/large ramp cannot express one; `LumiSize` holds fixed
   component dimensions so a spacing change can no longer silently resize a control.
 - `[devb]` **`LocalMotionEnabled`**, one theme-level flag folding reduced motion, battery saver, and
   lifecycle state, all observed live.
 - `[deva]` **Apache 2.0 `LICENSE`.** The open Phase 0 licence question, resolved by the owner.
 - `[deva]` **`DESIGN_LANGUAGE.md`**, now the authority for all UI work.
 - `[deva]` **Phase 0 foundation.** The app builds, and Dev B is unblocked.
-  - Gradle project on AGP 8.13.0 / Kotlin 2.2.0 / Gradle 9.2.1, namespace `com.trace`, minSdk 31,
+  - Gradle project on AGP 8.13.0 / Kotlin 2.2.0 / Gradle 9.2.1, namespace `com.lumi`, minSdk 31,
     compileSdk and targetSdk 37, Java 17. Every dependency version pinned exactly.
   - Theme tokens with contrast measured, a serif type scale, spacing and radius scales, and
     `LocalReducedMotion` provided at theme level and observed live.
@@ -101,6 +101,18 @@ Bad: `[deva] Updated RoutineWorker.kt and added BootReceiver.kt and modified the
   `changelog.md`, and `for_devb.md` as Dev B's self-contained brief.
 
 ### Changed
+
+- `[deva]` **The app is renamed Lumi** — package, identifiers, database, preferences, labels, spec
+  documents, and logs. References to Trace v1 and Trace-beta are kept: that is the project this one
+  descends from and a real checkout on disk. A new `applicationId` means a new data directory, so the
+  model re-downloads once.
+- `[deva]` Space required before a download is allowed now accounts for the ~850MB of compilation cache
+  the runtime writes on first load. It asked for 2.6GB plus 256MB, which let a download start on a phone
+  that then had no room to load it. Settings shows weights plus caches together.
+- `[deva]` `ModelStore.clear()` deletes the model directory rather than three named files — it was
+  leaving ~600MB of generated caches orphaned with nothing that would ever remove them.
+- `[deva]` The voice button in the composer is visibly disabled rather than live-looking and inert.
+  Voice is Phase 6; a control that responds to nothing teaches users not to trust the ones that do.
 
 - `[devb]` **The LiteRT-LM runtime is wired in.** `LiteRtModelHarness` is the single `@Singleton`
   implementation of `ModelHarness` and the only thing that constructs an `Engine` — serialised through
@@ -118,9 +130,9 @@ Bad: `[deva] Updated RoutineWorker.kt and added BootReceiver.kt and modified the
   and nothing estimates a time, because a download over an unknown connection cannot be estimated
   honestly. Consent-gated: a 1.9GB fetch on a metered plan is never started without asking.
 - `[devb]` **`ModelSetupScreen` gates the app on first run.** `MainActivity` observes
-  `ModelHarness.state` and hands off to `TraceApp` once `Ready`. A returning user whose model is on disk
+  `ModelHarness.state` and hands off to `LumiApp` once `Ready`. A returning user whose model is on disk
   passes through in a moment — it loads, not downloads.
-- `[devb]` **`TracePersona.SYSTEM`**, one short system instruction shared by the chat path and every
+- `[devb]` **`LumiPersona.SYSTEM`**, one short system instruction shared by the chat path and every
   background one, so the persona cannot drift between them. Short on purpose: every token is prefill on
   a 2B model.
 - `[devb]` **Manifest: `INTERNET` and `ACCESS_NETWORK_STATE`** — used only by the one-time model
@@ -130,18 +142,18 @@ Bad: `[deva] Updated RoutineWorker.kt and added BootReceiver.kt and modified the
   `LoadingState` takes the operation as a required argument so "Loading…" cannot be written by accident;
   `ErrorState` takes what happened, what to do, and what partly completed as three separate parameters
   so none can be skipped. Neither renders a red headline.
-- `[devb]` **`TraceGlassPanel`, `TraceIconButton`, and a `hairlineBorder` modifier** — the first of the
+- `[devb]` **`LumiGlassPanel`, `LumiIconButton`, and a `hairlineBorder` modifier** — the first of the
   component library, extracted from what was already on screen rather than invented. The glass recipe
   was hand-written in eight places.
-- `[devb]` **Shared design tokens.** `TraceMotion` holds every duration and easing; `TraceShape` names
-  radii by role because Material's small/medium/large ramp cannot express one; `TraceSize` holds fixed
+- `[devb]` **Shared design tokens.** `LumiMotion` holds every duration and easing; `LumiShape` names
+  radii by role because Material's small/medium/large ramp cannot express one; `LumiSize` holds fixed
   component dimensions so a spacing change can no longer silently resize a control.
 - `[devb]` **`LocalMotionEnabled`**, one theme-level flag folding reduced motion, battery saver, and
   lifecycle state, all observed live. `LocalReducedMotion` stays for the broader question.
 - `[deva]` **Apache 2.0 `LICENSE`.** The open Phase 0 licence question, resolved by the owner.
 - `[deva]` **`DESIGN_LANGUAGE.md`**, now the authority for all UI work.
 - `[deva]` **Phase 0 foundation.** The app builds, and Dev B is unblocked.
-  - Gradle project on AGP 8.13.0 / Kotlin 2.2.0 / Gradle 9.2.1, namespace `com.trace`, minSdk 31,
+  - Gradle project on AGP 8.13.0 / Kotlin 2.2.0 / Gradle 9.2.1, namespace `com.lumi`, minSdk 31,
     compileSdk and targetSdk 37, Java 17. Every dependency version pinned exactly.
   - Theme tokens with contrast measured, a serif type scale, spacing and radius scales, and
     `LocalReducedMotion` provided at theme level and observed live.
@@ -166,7 +178,7 @@ Bad: `[deva] Updated RoutineWorker.kt and added BootReceiver.kt and modified the
   and `gutter` are gone; nothing referenced them.
 - `[devb]` Light mode's `onPrimary` is `#171717`, not §2's `#FAFBF7` — white on the cyan accent measures
   2.35:1 and fails AA; the dark value measures 7.35:1. The accent hue is unchanged.
-- `[devb]` `TraceTheme`'s `darkTheme` now defaults to the system setting rather than always light,
+- `[devb]` `LumiTheme`'s `darkTheme` now defaults to the system setting rather than always light,
   matching §9. Nothing on screen changes, but the default is no longer a trap for the next caller.
 - `[devb]` The mascot's typing pose triggers when the keyboard opens, not on the first character typed.
 - `[devb]` Icon buttons are 42dp and attachment tiles 24dp, per §4 and §7. The selected sidebar row now
@@ -176,7 +188,7 @@ Bad: `[deva] Updated RoutineWorker.kt and added BootReceiver.kt and modified the
   are down to one definition. The remaining literals are values §5's scale does not define, left alone
   deliberately because rounding them would move Dev A's layout.
 - `[deva]` **`material-icons-extended` stays**, on the owner's call, superseding the Phase 0 entry that
-  dropped it — Trace's UI needs eleven glyphs `material-icons-core` does not carry, and R8 strips the
+  dropped it — Lumi's UI needs eleven glyphs `material-icons-core` does not carry, and R8 strips the
   rest from release, so the cost is debug-only. **Now a pinned version-catalogue entry** rather than the
   bare unversioned string it was.
 - `[deva]` minSdk is 31 and targetSdk 37, raised from the 26 and 36 originally planned. A device that
@@ -190,10 +202,10 @@ Bad: `[deva] Updated RoutineWorker.kt and added BootReceiver.kt and modified the
 - `[deva]` Voice targets native Android `SpeechRecognizer` and `TextToSpeech` for the Aug 22 build.
   Sherpa-ONNX moves to Phase 8; v1 built the offline stack and reverted it for latency and glitching.
 - `[deva]` All persistence is Room. v1's proto DataStore stores are not carried forward.
-- `[deva]` Package namespace is `com.trace`, replacing v1's `com.trace.app`.
+- `[deva]` Package namespace is `com.lumi`, replacing v1's `com.lumi.app`.
 - `[deva]` Branch workflow: Dev A works on `deva`, Dev B works on `devb`, and neither agent pushes to
   `main`. `main` advances only when the owner says so.
-- `[deva]` Trace v2 builds against the published LiteRT-LM Kotlin API and derives no code from Google
+- `[deva]` Lumi v2 builds against the published LiteRT-LM Kotlin API and derives no code from Google
   AI Edge Gallery, so no attribution is inherited from that fork.
 
 ### Fixed
@@ -239,7 +251,7 @@ Bad: `[deva] Updated RoutineWorker.kt and added BootReceiver.kt and modified the
 
 ### Removed
 
-- `[devb]` `TraceShapes`, an unused second `Shapes` object dead since the theme moved to the 16dp
+- `[devb]` `LumiShapes`, an unused second `Shapes` object dead since the theme moved to the 16dp
   `CohesiveShapes`, and the `SumiGreen`/`ZenIndigo` colours left behind by the olive palette.
 - `[deva]` The five-item bottom navigation bar, replaced by nine sidebar destinations with left and
   right drawers per `DESIGN_LANGUAGE.md` §8.

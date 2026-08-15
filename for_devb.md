@@ -3,7 +3,7 @@
 Read this first. It is your complete brief — you should not need anything outside this repository to
 start working.
 
-Trace v2 is a private, on-device automation layer for Android. Two developers are building it: Dev A
+Lumi v2 is a private, on-device automation layer for Android. Two developers are building it: Dev A
 and you, Dev B. The app must be complete by the morning of Aug 21 2026, including rebuild
 documentation. The hackathon is Aug 22.
 
@@ -12,8 +12,8 @@ documentation. The hackathon is Aug 22.
 1. This file.
 2. `todo.md` — the full phase plan. Every task is tagged `[deva]`, `[devb]`, or `[both]`. Yours are
    `[devb]`. Read the whole file anyway so you know what Dev A is building around you.
-3. `Trace_PRD_v2.docx` — what the product is and who it is for.
-4. `Trace — Design Specification.docx` — the system and UI/UX specification. Sections 18 through 35 are
+3. `Lumi_PRD_v2.docx` — what the product is and who it is for.
+4. `Lumi — Design Specification.docx` — the system and UI/UX specification. Sections 18 through 35 are
    yours. Read them properly; most of your work is specified there in detail.
 5. `decisions.md` — the rules that already bind, and why. Several of them are hard constraints that
    will look like arbitrary preferences until you read the reasoning.
@@ -153,7 +153,7 @@ These come from the design specification and are not negotiable without asking:
 - **The home screen must not look like a generic AI chat app.** No feature grid, no dashboard cards, no
   conversation-first layout. Mascot, one input, two affordances, and a lot of empty space.
 - **The widget must be indistinguishable from the app.** Same colours, type, spacing, mascot, and
-  interaction states. It should read as a piece of Trace on the home screen, not a separate product.
+  interaction states. It should read as a piece of Lumi on the home screen, not a separate product.
 
 ## Working with the owner
 

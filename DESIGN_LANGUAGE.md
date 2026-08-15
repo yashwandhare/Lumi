@@ -1,11 +1,11 @@
-# Trace — Design Language Baseline
+# Lumi — Design Language Baseline
 > Phase 0 UI Foundation. All future screens, components, and flows must be cohesive with this document.
 
 ---
 
 ## 1. Philosophy
 
-Trace reads as **editorial and calm**. Every decision comes from restraint:
+Lumi reads as **editorial and calm**. Every decision comes from restraint:
 - Fewer elements, better placed.
 - Hierarchy from size, weight, and spacing — never from colour.
 - The mascot is the only thing that is ever playful. Everything else is composed.
@@ -86,7 +86,7 @@ All corners use a single cohesive radius, except for full-bleed panels:
 
 ## 5. Spacing Tokens
 
-Always use TraceSpacing tokens. Never raw dp literals in layout.
+Always use LumiSpacing tokens. Never raw dp literals in layout.
 
 | Token | Value |
 |---|---|
@@ -99,9 +99,9 @@ Always use TraceSpacing tokens. Never raw dp literals in layout.
 
 ---
 
-## 6. The Mascot (TraceBlob)
+## 6. The Mascot (LumiBlob)
 
-The mascot is Trace's personality. Lives at the centre of the home screen.
+The mascot is Lumi's personality. Lives at the centre of the home screen.
 
 ### Anatomy (The Fantasy Slime)
 - Form: A dynamic, bouncing dome-like slime. It uses animated `RoundedCornerShape` percentages to maintain a perfectly round top and a flatter, squishier base.
@@ -158,7 +158,7 @@ rate, and time-to-first-token when it exceeds 1.5s. A footnote about the answer,
 **The view follows a streaming reply** and stops the instant the user drags, resuming when they let go at
 the bottom.
 
-## 7. Input Field (TraceInput)
+## 7. Input Field (LumiInput)
 
 Always at the bottom of the screen. Has imePadding() so it rises above the keyboard. Uses `animateContentSize()` to smoothly expand vertically.
 
@@ -214,7 +214,7 @@ conversation, and changing the processor reloads the model and clears what it re
 
 ## 11. Onboarding
 
-The first screen introduces Trace before asking for anything. Name, one line on what it is, three concrete
+The first screen introduces Lumi before asking for anything. Name, one line on what it is, three concrete
 capabilities, the privacy promise, then the download button with the size on it.
 
 Concrete over adjectives: "answer questions about your own notes" is something a person can picture,

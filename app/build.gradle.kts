@@ -7,11 +7,11 @@ plugins {
 }
 
 android {
-    namespace = "com.trace"
+    namespace = "com.lumi"
     compileSdk { version = release(37) { minorApiLevel = 0 } }
 
     defaultConfig {
-        applicationId = "com.trace"
+        applicationId = "com.lumi"
         minSdk = 31
         targetSdk = 37
         versionCode = 1
