@@ -363,9 +363,14 @@ fun TraceLogoIcon(modifier: Modifier = Modifier) {
 /**
  * §6 shake. A fixed pattern, stepped at [SHAKE_STEP_MS] — see the note at its use site for why this
  * is not a random value read during composition.
+ *
+ * Deliberately small. An earlier version ran ±2dp at 50ms per step, which read as violent rather than
+ * annoyed — the mascot is the only playful thing in the app, and a hard jitter makes it look broken
+ * instead of irritated. The amplitude tapers across the pattern so the shake settles rather than
+ * stopping dead on whichever step anger happens to end on.
  */
-private val SHAKE_PATTERN = listOf(-2f, 2f, -1.5f, 1.5f, -2f, 1f, -1f, 2f)
-private const val SHAKE_STEP_MS = 50L
+private val SHAKE_PATTERN = listOf(-1f, 1f, -0.75f, 0.75f, -0.5f, 0.5f, -0.25f, 0f)
+private const val SHAKE_STEP_MS = 70L
 
 /**
  * How long the body takes to change mood colour. Longer than `TraceMotion.CALM_MS` on purpose — a

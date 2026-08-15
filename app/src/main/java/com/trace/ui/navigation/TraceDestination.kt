@@ -23,7 +23,6 @@ enum class TraceDestination(
     ROUTINE("routine", "Routine", Icons.Rounded.AccessTime),
     JOURNAL("journal", "Journal", Icons.Rounded.Book),
     LISTS("lists", "Lists", Icons.AutoMirrored.Rounded.List),
-    MODEL_PARAMETERS("model_parameters", "Model Parameters", Icons.Rounded.Tune),
     SEARCH_SCOPE("search_scope", "Search Scope", Icons.Rounded.FindInPage),
     SETTINGS("settings", "Settings", Icons.Rounded.Settings),
 }

@@ -20,6 +20,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -50,6 +52,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -58,8 +62,10 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.trace.ui.components.EmptyState
 import com.trace.ui.components.hairlineBorder
+import com.trace.ui.chat.ChatViewModel
 import com.trace.ui.home.HomeScreen
 import com.trace.ui.navigation.TraceDestination
+import com.trace.ui.settings.SettingsScreen
 import com.trace.ui.theme.TraceShape
 import com.trace.ui.theme.TraceSize
 import com.trace.ui.theme.spacing
@@ -78,6 +84,22 @@ fun TraceApp(
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val rightDrawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
+
+    // Hoisted to the shell rather than obtained inside the Home destination. The history drawer and
+    // the transcript have to be the same conversation, and a `hiltViewModel()` call inside a
+    // `composable {}` is scoped to that back-stack entry — the drawer would have got a second,
+    // unrelated instance, so opening a past chat would have changed nothing on screen.
+    val chatViewModel: ChatViewModel = hiltViewModel()
+    val history by chatViewModel.history.collectAsStateWithLifecycle()
+    val chatTurns by chatViewModel.turns.collectAsStateWithLifecycle()
+    val chatGenerating by chatViewModel.generating.collectAsStateWithLifecycle()
+    val liveMascot by chatViewModel.liveMascot.collectAsStateWithLifecycle()
+
+    // Docked only during a conversation on Home, and only if the user wants a live mascot. On the
+    // empty Home screen it is still the centrepiece, so duplicating it in the bar would be two of it.
+    val dockMascot = liveMascot &&
+        chatTurns.isNotEmpty() &&
+        currentRoute == TraceDestination.HOME.route
 
     androidx.compose.runtime.CompositionLocalProvider(androidx.compose.ui.platform.LocalLayoutDirection provides androidx.compose.ui.unit.LayoutDirection.Rtl) {
         ModalNavigationDrawer(
@@ -111,15 +133,36 @@ fun TraceApp(
                             }
                             HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
                             Spacer(Modifier.height(MaterialTheme.spacing.md))
-                            // Empty history placeholder
-                            Column(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Spacer(Modifier.height(MaterialTheme.spacing.xl))
-                                Text("No history yet", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f))
-                                Spacer(Modifier.height(MaterialTheme.spacing.xs))
-                                Text("Past conversations will appear here.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f))
+                            if (history.isEmpty()) {
+                                Column(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Spacer(Modifier.height(MaterialTheme.spacing.xl))
+                                    Text("No history yet", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f))
+                                    Spacer(Modifier.height(MaterialTheme.spacing.xs))
+                                    Text("Past conversations will appear here.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f))
+                                }
+                            } else {
+                                androidx.compose.foundation.lazy.LazyColumn(
+                                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                                    verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.xs),
+                                ) {
+                                    items(history, key = { chat -> chat.id }) { chat ->
+                                        HistoryRow(
+                                            title = chat.title,
+                                            onClick = {
+                                                chatViewModel.openConversation(chat.id)
+                                                navController.navigate(TraceDestination.HOME.route) {
+                                                    popUpTo(TraceDestination.HOME.route) { inclusive = true }
+                                                    launchSingleTop = true
+                                                }
+                                                scope.launch { rightDrawerState.close() }
+                                            },
+                                            onDelete = { chatViewModel.deleteConversation(chat.id) },
+                                        )
+                                    }
+                                }
                             }
                             Spacer(Modifier.weight(1f))
                             HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
@@ -130,7 +173,14 @@ fun TraceApp(
                                     .clip(RoundedCornerShape(12.dp))
                                     .background(MaterialTheme.colorScheme.surfaceVariant)
                                     .hairlineBorder(RoundedCornerShape(12.dp))
-                                    .clickable { }
+                                    .clickable {
+                                        chatViewModel.newConversation()
+                                        navController.navigate(TraceDestination.HOME.route) {
+                                            popUpTo(TraceDestination.HOME.route) { inclusive = true }
+                                            launchSingleTop = true
+                                        }
+                                        scope.launch { rightDrawerState.close() }
+                                    }
                                     .padding(horizontal = MaterialTheme.spacing.md, vertical = 13.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.Center
@@ -174,7 +224,24 @@ fun TraceApp(
                         containerColor = MaterialTheme.colorScheme.background,
                         topBar = {
                             TopAppBar(
-                                title = { },
+                                title = {
+                                    // The mascot docks here once a conversation starts, so it stays
+                                    // present without occupying the middle of a screen the user is now
+                                    // reading. It keeps reacting — the same composable, so the same
+                                    // breathing and the same motion gating, just a smaller slot.
+                                    androidx.compose.animation.AnimatedVisibility(
+                                        visible = dockMascot,
+                                        enter = androidx.compose.animation.fadeIn() +
+                                            androidx.compose.animation.expandHorizontally(),
+                                        exit = androidx.compose.animation.fadeOut() +
+                                            androidx.compose.animation.shrinkHorizontally(),
+                                    ) {
+                                        com.trace.ui.components.TraceBlob(
+                                            modifier = Modifier.size(TraceSize.avatar),
+                                            isTyping = chatGenerating,
+                                        )
+                                    }
+                                },
                                 navigationIcon = {
                                     IconButton(onClick = { scope.launch { drawerState.open() } }) {
                                         Icon(Icons.Rounded.Menu, contentDescription = "Menu")
@@ -199,7 +266,7 @@ fun TraceApp(
                 exitTransition = { ExitTransition.None },
             ) {
                 composable(TraceDestination.HOME.route) {
-                    HomeScreen()
+                    HomeScreen(viewModel = chatViewModel)
                 }
                 composable(TraceDestination.MEMORY.route) {
                     EmptyState(
@@ -231,31 +298,14 @@ fun TraceApp(
                         invitation = "Checklists and notes.",
                     )
                 }
-                composable(TraceDestination.MODEL_PARAMETERS.route) {
-                    EmptyState(headline = "Model Parameters", invitation = "Tune model settings.")
-                }
                 composable(TraceDestination.SEARCH_SCOPE.route) {
                     EmptyState(headline = "Search Scope", invitation = "Manage search sources.")
                 }
                 composable(TraceDestination.SETTINGS.route) {
-                    Column(
-                        modifier = Modifier.fillMaxSize().padding(MaterialTheme.spacing.md),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Text("Settings", style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.onBackground)
-                        Spacer(Modifier.height(MaterialTheme.spacing.xl))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("Dark Mode", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onBackground)
-                            Spacer(Modifier.width(MaterialTheme.spacing.md))
-                            Box(modifier = Modifier.scale(0.78f)) {
-                            androidx.compose.material3.Switch(
-                                checked = isDarkTheme,
-                                onCheckedChange = { onThemeToggle() }
-                            )
-                            }
-                        }
-                    }
+                    SettingsScreen(
+                        isDarkTheme = isDarkTheme,
+                        onThemeToggle = onThemeToggle,
+                    )
                 }
             } // NavHost
         } // Scaffold
@@ -264,6 +314,46 @@ fun TraceApp(
     } // ModalNavigationDrawer (Right)
     } // CompositionLocalProvider (Right)
 } // TraceApp
+
+/**
+ * One stored conversation in the history drawer.
+ *
+ * The delete control is always visible rather than hidden behind a swipe or a long press: the drawer is
+ * narrow, a swipe there competes with the drawer's own dismiss gesture, and a long press is not
+ * discoverable.
+ */
+@Composable
+private fun HistoryRow(
+    title: String,
+    onClick: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = MaterialTheme.spacing.sm, vertical = MaterialTheme.spacing.sm),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 2,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
+            Icon(
+                Icons.Rounded.Close,
+                contentDescription = "Delete this conversation",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(16.dp),
+            )
+        }
+    }
+}
 
 @Composable
 private fun AppDrawerContent(
@@ -303,7 +393,6 @@ private fun AppDrawerContent(
         Spacer(Modifier.height(MaterialTheme.spacing.xs))
         DrawerRow(label = "Lists", selected = currentRoute == TraceDestination.LISTS.route, onClick = { onNavigate(TraceDestination.LISTS) }, icon = Icons.AutoMirrored.Rounded.List)
         Spacer(Modifier.height(MaterialTheme.spacing.xs))
-        DrawerRow(label = "Model Parameters", selected = currentRoute == TraceDestination.MODEL_PARAMETERS.route, onClick = { onNavigate(TraceDestination.MODEL_PARAMETERS) }, icon = Icons.Rounded.Tune)
         Spacer(Modifier.height(MaterialTheme.spacing.xs))
         DrawerRow(label = "Search Scope", selected = currentRoute == TraceDestination.SEARCH_SCOPE.route, onClick = { onNavigate(TraceDestination.SEARCH_SCOPE) }, icon = Icons.Rounded.FindInPage)
 

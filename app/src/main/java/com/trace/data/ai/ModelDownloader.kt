@@ -47,11 +47,14 @@ class ModelDownloader @Inject constructor(
 ) {
 
     /**
-     * @param onProgress called with bytes-on-disk and the total. Total is [GemmaModel.SIZE_BYTES]
-     *   rather than whatever the server reports, so a truncated response cannot make the bar look
-     *   finished.
+     * @param onProgress called with bytes-on-disk, the total, and a smoothed recent rate in bytes
+     *   per second — null until there is enough of a sample to report honestly. Total is
+     *   [GemmaModel.SIZE_BYTES] rather than whatever the server reports, so a truncated response
+     *   cannot make the bar look finished.
      */
-    suspend fun download(onProgress: (downloaded: Long, total: Long) -> Unit): DownloadOutcome =
+    suspend fun download(
+        onProgress: (downloaded: Long, total: Long, bytesPerSecond: Long?) -> Unit,
+    ): DownloadOutcome =
         withContext(io) {
             if (store.isReady()) return@withContext DownloadOutcome.Success
             if (!hasNetwork()) {
@@ -71,7 +74,9 @@ class ModelDownloader @Inject constructor(
             }
         }
 
-    private suspend fun fetch(onProgress: (Long, Long) -> Unit): DownloadOutcome {
+    private suspend fun fetch(
+        onProgress: (Long, Long, Long?) -> Unit,
+    ): DownloadOutcome {
         var alreadyHave = store.partialBytes()
         if (alreadyHave > GemmaModel.SIZE_BYTES) {
             // Longer than the real file means it is not the real file. Start clean.
@@ -116,19 +121,20 @@ class ModelDownloader @Inject constructor(
                     val buffer = ByteArray(BUFFER_BYTES)
                     var written = alreadyHave
                     var lastReported = 0L
+                    val rate = TransferRate()
                     while (true) {
                         currentCoroutineContext().ensureActive()
                         val read = input.read(buffer)
                         if (read <= 0) break
                         channel.write(java.nio.ByteBuffer.wrap(buffer, 0, read))
                         written += read
-                        // Throttled: a callback per 8KB chunk would be ~245,000 UI updates.
+                        // Throttled: a callback per 64KB chunk would be tens of thousands of UI updates.
                         if (written - lastReported >= PROGRESS_STEP_BYTES) {
                             lastReported = written
-                            onProgress(written, GemmaModel.SIZE_BYTES)
+                            onProgress(written, GemmaModel.SIZE_BYTES, rate.sample(written))
                         }
                     }
-                    onProgress(written, GemmaModel.SIZE_BYTES)
+                    onProgress(written, GemmaModel.SIZE_BYTES, rate.sample(written))
                 }
             }
         } finally {
@@ -166,5 +172,44 @@ class ModelDownloader @Inject constructor(
         const val BUFFER_BYTES = 1 shl 16
         const val PROGRESS_STEP_BYTES = 2L shl 20
         const val HEADROOM_BYTES = 256L shl 20
+    }
+}
+
+/**
+ * A smoothed transfer rate.
+ *
+ * Reports null until [MIN_SAMPLE_MS] has passed, because the first fraction of a second of a download
+ * reads as an absurd number — showing "180 MB/s" and then dropping to 4 is worse than showing nothing
+ * for a moment.
+ *
+ * Exponentially smoothed rather than instantaneous: a raw per-chunk rate on a mobile connection
+ * flickers hard enough to be unreadable. [SMOOTHING] weights the running value against each new
+ * sample, so the number moves but stays legible.
+ */
+private class TransferRate {
+
+    private var windowStartMs = System.currentTimeMillis()
+    private var windowStartBytes = -1L
+    private var smoothed: Double? = null
+
+    /** @return bytes per second, or null while the sample is too short to be honest about. */
+    fun sample(totalBytes: Long): Long? {
+        if (windowStartBytes < 0) windowStartBytes = totalBytes
+
+        val now = System.currentTimeMillis()
+        val elapsedMs = now - windowStartMs
+        if (elapsedMs < MIN_SAMPLE_MS) return smoothed?.toLong()
+
+        val instant = (totalBytes - windowStartBytes) * 1000.0 / elapsedMs
+        smoothed = smoothed?.let { it * (1 - SMOOTHING) + instant * SMOOTHING } ?: instant
+
+        windowStartMs = now
+        windowStartBytes = totalBytes
+        return smoothed?.toLong()
+    }
+
+    private companion object {
+        const val MIN_SAMPLE_MS = 700L
+        const val SMOOTHING = 0.35
     }
 }

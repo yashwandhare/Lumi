@@ -1,6 +1,8 @@
 package com.trace.ui.onboarding
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -8,7 +10,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -19,7 +22,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.trace.core.ai.GemmaModel
@@ -75,41 +80,81 @@ fun ModelSetupScreen(
 }
 
 /**
- * The ask. Says what it costs and what it buys, in that order.
+ * The ask, and the introduction.
  *
- * The offline promise is the product's whole point, so it is stated here rather than in a marketing
- * screen the user would skip — this is the one moment the download makes sense to them.
+ * This is the first thing anyone sees, and before this it was a size and a button — the user was asked
+ * to spend 2.6GB before being told what they were getting. So it leads with what Trace *is*, gives
+ * three concrete things it does, and only then asks. Concrete beats adjectives: "answer questions about
+ * your own notes" is a thing you can picture, "powerful AI assistant" is not.
+ *
+ * Still short. Three lines and a button, not a carousel — an onboarding flow the user has to page
+ * through before a 2.6GB download is a worse first impression than one that gets out of the way.
  */
 @Composable
 private fun ConsentStep(onDownload: () -> Unit) {
     Text(
-        text = "Trace runs on your phone.",
+        text = "This is Trace.",
         style = MaterialTheme.typography.headlineMedium,
         color = MaterialTheme.colorScheme.onBackground,
         textAlign = TextAlign.Center,
     )
     Text(
-        text = "It needs to download its model once — ${GemmaModel.HUMAN_SIZE}. " +
-            "After that everything works with no internet, and nothing you say leaves the device.",
+        text = "A private assistant that runs on your phone. Not in the cloud — on the phone in your hand.",
         style = MaterialTheme.typography.bodyLarge,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         textAlign = TextAlign.Center,
         modifier = Modifier.padding(top = MaterialTheme.spacing.md),
     )
+
+    Column(
+        modifier = Modifier.padding(top = MaterialTheme.spacing.lg),
+        verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.sm),
+    ) {
+        CapabilityLine("Ask it things, with no signal and no account.")
+        CapabilityLine("Keep notes and documents it can answer from.")
+        CapabilityLine("Set routines that run themselves while the app is closed.")
+    }
+
     Text(
-        text = "Best done on Wi-Fi. You can close Trace and come back — the download picks up where " +
-            "it stopped.",
+        text = "Nothing you type or store ever leaves the device.",
         style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.padding(top = MaterialTheme.spacing.lg),
+    )
+
+    Button(
+        onClick = onDownload,
+        shape = TraceShape.default,
+        modifier = Modifier.padding(top = MaterialTheme.spacing.lg),
+    ) {
+        Text("Download model · ${GemmaModel.HUMAN_SIZE}", style = MaterialTheme.typography.labelLarge)
+    }
+    Text(
+        text = "One time, Wi-Fi recommended. It resumes if interrupted.",
+        style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         textAlign = TextAlign.Center,
         modifier = Modifier.padding(top = MaterialTheme.spacing.sm),
     )
-    Button(
-        onClick = onDownload,
-        shape = TraceShape.default,
-        modifier = Modifier.padding(top = MaterialTheme.spacing.xl),
-    ) {
-        Text("Download model", style = MaterialTheme.typography.labelLarge)
+}
+
+/** One thing Trace does. The accent dot is the only colour on this screen. */
+@Composable
+private fun CapabilityLine(text: String) {
+    Row(verticalAlignment = Alignment.Top) {
+        Box(
+            modifier = Modifier
+                .padding(top = 7.dp, end = MaterialTheme.spacing.sm)
+                .size(5.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.primary),
+        )
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
     }
 }
 
@@ -119,7 +164,7 @@ private fun SetupProgress(state: ModelState, onRetry: () -> Unit) {
     when (state) {
         is ModelState.Downloading -> {
             Text(
-                text = "Downloading the model",
+                text = "Downloading",
                 style = MaterialTheme.typography.headlineMedium,
                 color = MaterialTheme.colorScheme.onBackground,
                 textAlign = TextAlign.Center,
@@ -148,7 +193,13 @@ private fun SetupProgress(state: ModelState, onRetry: () -> Unit) {
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         Text(
-                            text = state.fraction?.let { "${(it * 100).toInt()}%" } ?: "",
+                            // Speed and percentage together: the percentage says how far, the speed
+                            // says whether it is still moving. A stalled download at 3.9% looks
+                            // identical to a slow one without it.
+                            text = listOfNotNull(
+                                state.bytesPerSecond?.asTransferRate(),
+                                state.fraction?.let { "${(it * 100).toInt()}%" },
+                            ).joinToString("  ·  "),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -156,7 +207,7 @@ private fun SetupProgress(state: ModelState, onRetry: () -> Unit) {
                 }
             }
             Text(
-                text = "Safe to leave this screen. Trace keeps going.",
+                text = "Safe to leave this screen.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
@@ -172,9 +223,9 @@ private fun SetupProgress(state: ModelState, onRetry: () -> Unit) {
                 textAlign = TextAlign.Center,
             )
             Text(
-                // Named honestly, and warned about honestly. A cold load is tens of seconds on this
-                // class of hardware; a user who was not told assumes the app has hung.
-                text = "This takes up to a minute the first time. It is quicker after that.",
+                // Warned about honestly. A cold load is tens of seconds on this class of hardware; a
+                // user who was not told assumes the app has hung.
+                text = "Up to a minute the first time.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
@@ -198,10 +249,9 @@ private fun SetupProgress(state: ModelState, onRetry: () -> Unit) {
             )
             Text(
                 text = if (state.recoverable) {
-                    "Nothing downloaded so far was lost. Trace will carry on from where it stopped."
+                    "Nothing was lost. Trace picks up where it stopped."
                 } else {
-                    "Trace cannot run its model on this device. Everything that does not need the " +
-                        "model still works."
+                    "Everything that does not need the model still works."
                 },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -228,5 +278,16 @@ private fun SetupProgress(state: ModelState, onRetry: () -> Unit) {
 
 /** One decimal place. Two would imply a precision the user has no use for. */
 private fun Long.asGigabytes(): String = "%.1f GB".format(this / 1_000_000_000.0)
+
+/**
+ * MB/s above a megabyte, KB/s below it.
+ *
+ * Decimal units, matching how connections are advertised and how [asGigabytes] reports size, so the
+ * two numbers on this row are in the same system.
+ */
+private fun Long.asTransferRate(): String = when {
+    this >= 1_000_000 -> "%.1f MB/s".format(this / 1_000_000.0)
+    else -> "${this / 1_000} KB/s"
+}
 
 

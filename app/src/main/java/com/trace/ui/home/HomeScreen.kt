@@ -16,6 +16,10 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.trace.ui.chat.ChatTranscript
+import com.trace.ui.chat.ChatViewModel
 import com.trace.ui.components.TraceBlob
 import com.trace.ui.components.TraceGlassPanel
 import com.trace.ui.components.TraceInput
@@ -26,10 +30,19 @@ import androidx.compose.animation.animateContentSize
 
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
-fun HomeScreen(modifier: Modifier = Modifier) {
+fun HomeScreen(
+    modifier: Modifier = Modifier,
+    viewModel: ChatViewModel = hiltViewModel(),
+) {
     var query by remember { mutableStateOf("") }
     var showAttachmentSheet by remember { mutableStateOf(false) }
     var reactionCount by remember { mutableStateOf(0) }
+
+    val turns by viewModel.turns.collectAsStateWithLifecycle()
+    val canSend by viewModel.canSend.collectAsStateWithLifecycle()
+    val thinkingVerb by viewModel.thinkingVerb.collectAsStateWithLifecycle()
+
+    val conversationStarted = turns.isNotEmpty()
 
     Column(
         modifier = modifier
@@ -45,45 +58,59 @@ fun HomeScreen(modifier: Modifier = Modifier) {
         // lands. Text presence is kept as a second trigger so a hardware keyboard behaves the same.
         val isTyping = WindowInsets.isImeVisible || query.isNotEmpty()
 
-        // Top spacer pushes everything down
-        Spacer(Modifier.weight(1f))
+        // Once a conversation exists the transcript is the screen, so the mascot and greeting give up
+        // their space to it rather than competing for the middle. With the live mascot on it reappears
+        // docked next to the menu button; with it off it simply stays away until the chat is cleared.
+        if (conversationStarted) {
+            ChatTranscript(
+                turns = turns,
+                thinkingVerb = thinkingVerb,
+                modifier = Modifier.weight(1f),
+            )
+        } else {
+            Spacer(Modifier.weight(1f))
 
-        TraceBlob(
-            modifier = Modifier.size(72.dp),
-            isTyping = isTyping,
-            reactionTrigger = reactionCount
-        )
-        
-        androidx.compose.animation.AnimatedVisibility(
-            visible = !isTyping,
-            enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.expandVertically(),
-            exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.shrinkVertically()
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Spacer(Modifier.height(32.dp))
-                val greeting = remember { getGreeting() }
-                Text(
-                    text = greeting,
-                    style = MaterialTheme.typography.headlineMedium,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
+            TraceBlob(
+                modifier = Modifier.size(72.dp),
+                isTyping = isTyping,
+                reactionTrigger = reactionCount
+            )
+
+            androidx.compose.animation.AnimatedVisibility(
+                visible = !isTyping,
+                enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.expandVertically(),
+                exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.shrinkVertically()
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Spacer(Modifier.height(32.dp))
+                    val greeting = remember { getGreeting() }
+                    Text(
+                        text = greeting,
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                }
             }
-        }
 
-        // Bottom spacer goes away when typing so blob sits right above input
-        val bottomWeight by androidx.compose.animation.core.animateFloatAsState(targetValue = if (isTyping) 0.001f else 1f, label = "bottomWeight")
-        Spacer(Modifier.weight(bottomWeight))
+            // Bottom spacer goes away when typing so blob sits right above input
+            val bottomWeight by androidx.compose.animation.core.animateFloatAsState(targetValue = if (isTyping) 0.001f else 1f, label = "bottomWeight")
+            Spacer(Modifier.weight(bottomWeight))
+        }
 
         TraceInput(
             value = query,
             onValueChange = { query = it },
-            onSendText = { 
-                query = "" 
+            onSendText = { text ->
+                viewModel.send(text)
+                query = ""
                 reactionCount++
             },
+            // False while the model loads or is already decoding. Before this, the send button looked
+            // alive at all times and a tap silently did nothing.
+            canSend = canSend,
             showAttach = true,
-            onAttach = { 
-                showAttachmentSheet = true 
+            onAttach = {
+                showAttachmentSheet = true
                 reactionCount++
             },
             modifier = Modifier.padding(bottom = 16.dp)

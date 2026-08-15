@@ -25,6 +25,14 @@ fun TraceInput(
     modifier: Modifier = Modifier,
     placeholder: String = "Chat with Trace...",
     enabled: Boolean = true,
+    /**
+     * Whether the send button should act, independent of whether there is text.
+     *
+     * Separate from [enabled] because the two mean different things: [enabled] is about the whole
+     * composer, this is about whether the thing behind it can accept work right now — the model still
+     * loading, or already decoding a reply.
+     */
+    canSend: Boolean = true,
     showAttach: Boolean = true,
     onAttach: () -> Unit = {},
 ) {
@@ -103,22 +111,22 @@ fun TraceInput(
 
                 Spacer(Modifier.width(MaterialTheme.spacing.md))
 
-                val canSend = value.isNotBlank()
+                val sendable = value.isNotBlank() && canSend
                 TraceIconButton(
                     icon = Icons.Rounded.ArrowUpward,
                     contentDescription = "Send",
                     onClick = { onSendText(value) },
-                    container = if (canSend) {
+                    container = if (sendable) {
                         MaterialTheme.colorScheme.primary
                     } else {
                         MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
                     },
-                    tint = if (canSend) {
+                    tint = if (sendable) {
                         MaterialTheme.colorScheme.onPrimary
                     } else {
                         MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f)
                     },
-                    enabled = canSend,
+                    enabled = sendable,
                 )
             }
         }

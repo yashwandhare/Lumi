@@ -1,5 +1,6 @@
 package com.trace.core.ai
 
+import com.trace.core.settings.ModelBackend
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -14,8 +15,18 @@ sealed interface ModelState {
     /** No model on device yet. First run, or the user cleared storage. */
     data object Absent : ModelState
 
-    /** [fraction] is 0f..1f, or null when the server gave no content length. */
-    data class Downloading(val fraction: Float?, val downloadedBytes: Long) : ModelState
+    /**
+     * [fraction] is 0f..1f, or null when the server gave no content length.
+     *
+     * [bytesPerSecond] is a smoothed recent rate, or null before there is enough of a sample to be
+     * honest about one. It is deliberately not turned into a time estimate: a remaining-time figure
+     * over a phone connection is wrong often enough that it erodes trust in everything else on screen.
+     */
+    data class Downloading(
+        val fraction: Float?,
+        val downloadedBytes: Long,
+        val bytesPerSecond: Long? = null,
+    ) : ModelState
 
     data object Loading : ModelState
 
@@ -73,8 +84,26 @@ data class GenerationRequest(
     val prompt: String,
     val systemInstruction: String? = null,
     val attachments: List<ModelAttachment> = emptyList(),
-    val sampling: Sampling = Sampling.Default,
+    /** Null means "use the user's settings", which is what the chat path wants. */
+    val sampling: Sampling? = null,
     val sessionId: SessionId? = null,
+)
+
+/**
+ * How the last reply performed.
+ *
+ * [tokensPerSecond] is measured from the first token onward, not from the send — prefill on a 2B model
+ * is a second or more and folding it in would report a number unrelated to how fast text appears.
+ * [timeToFirstTokenMs] is that prefill, reported separately because it is the part felt as lag.
+ *
+ * [approxTokens] is approximate and labelled as such wherever it is shown: there is no tokenizer on
+ * this side of the JNI boundary, so it is derived from character count.
+ */
+data class GenerationMetrics(
+    val totalMs: Long,
+    val timeToFirstTokenMs: Long,
+    val approxTokens: Int,
+    val tokensPerSecond: Double?,
 )
 
 /**
@@ -92,6 +121,9 @@ interface ModelHarness {
 
     val state: StateFlow<ModelState>
 
+    /** Timings from the most recent reply, or null before one has completed. */
+    val lastMetrics: StateFlow<GenerationMetrics?>
+
     /**
      * Fetch the model if absent, then load it. Idempotent and safe to call from anywhere;
      * concurrent callers join the same work rather than starting a second load.
@@ -100,6 +132,17 @@ interface ModelHarness {
      * sees the same truth.
      */
     suspend fun prepare()
+
+    /**
+     * Drop the engine and load it again, for when the backend preference changes.
+     *
+     * Every conversation is closed with it — a `Conversation` belongs to the `Engine` that created it,
+     * and outliving that engine is a native crash rather than a stale object.
+     */
+    suspend fun reload()
+
+    /** Which backend is actually loaded, which may differ from the request if Auto fell back. */
+    fun activeBackend(): ModelBackend?
 
     /** Streamed generation. Emits text as it is produced. */
     fun generate(request: GenerationRequest): Flow<String>
