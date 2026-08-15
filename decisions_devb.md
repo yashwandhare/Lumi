@@ -115,4 +115,59 @@ spacing looked wrong.
 define them. `hairline` moved to `TraceSize` at its real used value of 0.5dp rather than the declared
 1dp — every call site in the app already passed 0.5dp by hand.
 
+### [devb] 2026-08-15 — Nine sidebar destinations is the intended set, not a shortfall
+
+`DESIGN_LANGUAGE.md` §8 numbers its destination list to 14 and elides items 6 through 13 as `...`. The
+code has nine. **The owner confirmed the nine are correct and sufficient for the baseline scaffold**,
+so §8's numbering is aspirational rather than a specification, and the gap is not a defect to close.
+
+**Why record it:** a later reader comparing §8 to `TraceDestination` will count nine against fourteen
+and assume five screens were dropped. They were never named. If destinations are added, §8 should be
+updated to name them at the same time.
+
+### [devb] 2026-08-15 — `material-icons-extended` stays, superseding the entry that dropped it
+
+`decisions.md` records `material-icons-extended` being dropped in Phase 0 because it put 40MB of
+generated classes into the debug APK — 63MB total, 42MB in one dex file — against `material-icons-core`
+at 30.5MB. It has since been re-added, and **the owner has ruled that it stays.**
+
+**Why:** the icons are needed. `TraceApp` and `HomeScreen` between them use `NoteAlt`, `Event`, `Book`,
+`Tune`, `FindInPage`, `History`, `GraphicEq`, `CameraAlt`, `PhotoLibrary`, `UploadFile`, and `Public`,
+none of which are in `material-icons-core`. The owner's position: final APK size is irrelevant for a
+hackathon, runtime optimization is what matters, and icon coverage was a real gap before.
+
+**What this does not excuse.** Two things still need attention and neither is about size:
+
+1. The dependency is declared as a raw string, `implementation("androidx.compose.material:material-icons-extended")`,
+   with no version and no version-catalogue entry. Every other dependency in this project is pinned
+   exactly — `decisions.md` is explicit that nothing uses `latest.release`. It resolves through the
+   Compose BOM today, which is why it works, but it should be a catalogue entry like its siblings.
+2. R8 strips unused icons from the release build, so the cost is a debug-build and build-time cost,
+   not a shipped one. Worth knowing before anyone re-opens this on size grounds.
+
+`decisions.md`'s Phase 0 entry is superseded on the decision, not on its measurements — those numbers
+were real.
+
+### [devb] 2026-08-15 — Glass is alpha and a hairline; there is no blur
+
+`DESIGN_LANGUAGE.md` §4 describes glassmorphism as `surfaceVariant` at partial alpha with a 0.5dp
+border, "blurring the underlying content softly". The first half is implemented. **The blur is not, and
+was not before this branch.**
+
+**Why:** Compose has no backdrop blur. `Modifier.blur` blurs a composable's own content, not what is
+behind it. Blurring the content *behind* a drawer or a sheet needs either a platform window-blur API,
+which does not apply to a Compose surface inside one window, or capturing the background to a layer and
+blurring that — expensive per frame and fragile across densities.
+
+**What is shipped instead:** §4's own recipe, alpha plus the hairline, which reads as frosted against
+Trace's surfaces because the palette is low-contrast to begin with. Revisit if a backdrop API lands.
+Do not fake it by screenshotting the background.
+
+**Left deliberately alone:** both sidebars use opaque `surface` rather than a translucent
+`surfaceVariant`, and the attachment sheet keeps its 24dp top corners rather than §4's square
+"Sidebars & Modals" rule. Both are Dev A's established look, both would be visible changes, and §4's
+full-bleed-panel reasoning does not obviously extend to a bottom sheet. They need an owner call, not an
+agent's.
+
+
 

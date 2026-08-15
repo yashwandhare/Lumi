@@ -20,6 +20,16 @@ the git log. Dev A folds these entries into `changelog.md` at merge points, pref
 
 ### Added
 
+- `[devb]` **`LoadingState` and `ErrorState`**, the missing two thirds of the state family beside
+  `EmptyState`. `LoadingState` takes the operation as a required argument, so "Loading…" cannot be
+  written by accident, and drops its indeterminate bar entirely when motion is off rather than
+  animating forever. `ErrorState` takes what happened, what to do, and what partly completed as three
+  separate parameters, so none of the three can be skipped — and it never renders a red headline,
+  because §3 forbids hierarchy by colour.
+- `[devb]` **`TraceGlassPanel`, `TraceIconButton`, and a `hairlineBorder` modifier** — the first pieces
+  of the §28 component library, extracted from what was already on screen rather than invented. §4's
+  glass recipe was hand-written in eight places and the three circular buttons in §7 were three
+  near-identical hand-rolled `Box`es.
 - `[devb]` **Design tokens the whole UI can share.** `TraceMotion` holds every duration and easing in
   one place, including the three mascot timings §6 fixes. `TraceShape` names radii by role — the 28dp
   input, the 24dp tile, the square full-bleed panel — because Material's small/medium/large ramp
@@ -50,6 +60,17 @@ the git log. Dev A folds these entries into `changelog.md` at merge points, pref
   nothing on screen changes — but the default is no longer a trap for the next caller.
 - `[devb]` The mascot's typing pose now triggers when the keyboard opens, per §6, rather than waiting
   for the first character to be typed.
+- `[devb]` **Icon buttons are 42dp and attachment tiles 24dp**, the values §4 and §7 specify. They were
+  40dp and 20dp. The selected sidebar row now carries the accent on its icon, which §2 lists as one of
+  the four places the accent belongs and which was the only one missing.
+- `[devb]` **Raw dp literals in `ui/` are down from 126 to 65**, and the eight hand-written copies of
+  §4's glass border are down to the one definition. Every remaining literal is either a value §5's
+  scale does not define — 10, 11, 12, 13, 14, 18 — or a genuine one-off component dimension. The
+  off-scale ones were left alone deliberately: they are Dev A's layout, and rounding them to the
+  nearest token would move the UI.
+- `[devb]` `material-icons-extended` stays, on the owner's call, superseding the `decisions.md` entry
+  that dropped it. It should still become a pinned version-catalogue entry rather than a raw string.
+  See `decisions_devb.md`.
 
 ### Fixed
 
