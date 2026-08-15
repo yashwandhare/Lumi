@@ -29,6 +29,79 @@ Bad: `[deva] Updated RoutineWorker.kt and added BootReceiver.kt and modified the
 
 ### Added
 
+- `[deva]` **Chat works end to end.** Sending a message runs it through the resident model and streams
+  the reply into the transcript. Before this the send button cleared the field and called nothing — the
+  UI was a shell with no path to the model at all.
+- `[deva]` **Replies render markdown.** Numbered and bulleted lists, bold, inline code, and fenced code
+  blocks in a monospace face. The model emits markdown whether or not it is asked to, so a plain `Text`
+  was showing users the syntax instead of the formatting.
+- `[deva]` **Conversations persist, and history works.** Chats and their messages are stored through
+  Room, listed newest-first in the history drawer, and can be reopened or deleted. The drawer previously
+  hardcoded "No history yet" and the New Chat row was an empty `clickable {}`.
+- `[deva]` **A merged settings screen** covering appearance, processor, model parameters, and the system
+  prompt. Sliders for temperature, top-P, top-K, and the reply limit, seeded from the defaults v1 shipped
+  for this same Gemma build (64 / 0.95 / 1.0 / 4096). The Model Parameters sidebar entry is gone; this
+  screen replaces it.
+- `[deva]` **A user-selectable backend** — CPU, GPU, or Auto — applied by reloading the engine, with the
+  backend actually in use reported back so an Auto fallback is visible rather than silent.
+- `[deva]` **Reply timings** under each answer: elapsed time, approximate decode rate, and
+  time-to-first-token when it is slow enough to matter. Measured from the first token rather than from
+  the send, so prefill does not distort the rate. Switchable off in settings.
+- `[deva]` **A status verb while the model works** — one per reply, chosen at random from a dozen, with
+  animated dots. Fixed for the duration of the reply on purpose: a label that changed mid-wait read as
+  several failed attempts rather than one in progress.
+- `[deva]` **The mascot docks beside the menu button** once a conversation starts, keeps reacting, and
+  gives the centre of the screen to the transcript. Switchable off with **Live mascot** in settings.
+- `[deva]` **A real onboarding screen.** Introduces Trace and three concrete things it does before
+  asking for a 2.6GB download, rather than leading with a size and a button.
+- `[deva]` **Download speed** on the setup screen, smoothed and only shown once the sample is long
+  enough to be honest. No time estimate — a remaining-time figure over an unknown connection is wrong
+  often enough to erode trust in every other number on screen.
+- `[devb]` **The LiteRT-LM runtime is wired in.** `LiteRtModelHarness` is the single `@Singleton`
+  implementation of `ModelHarness` and the only thing that constructs an `Engine` — serialised through
+  the one-thread inference dispatcher *and* a `Mutex`, so neither two native calls nor two logical
+  generations can interleave. Loads once, stays resident.
+- `[devb]` **`ModelStore` and `ModelDownloader` — the no-redownload guarantee.** The model lives in
+  `filesDir`, and is usable only when size **and** a recorded SHA-256 match. v1 checked existence alone,
+  which let a truncated file through to the native loader and read as "the app is broken". Downloads
+  resume from a `.part` file with a `Range` request and classify failures as retryable or permanent.
+- `[devb]` **`ModelSetupScreen` gates the app on first run.** `MainActivity` observes
+  `ModelHarness.state` and hands off to `TraceApp` once `Ready`. A returning user whose model is on disk
+  passes through in a moment — it loads, not downloads.
+- `[devb]` **Manifest: `INTERNET` and `ACCESS_NETWORK_STATE`** — used only by the one-time model
+  download — plus four `uses-native-library` entries at `required="false"` that the GPU backend dlopens
+  on API 31+.
+- `[devb]` **`LoadingState` and `ErrorState`**, completing the state family beside `EmptyState`.
+  `LoadingState` takes the operation as a required argument so "Loading…" cannot be written by accident;
+  `ErrorState` takes what happened, what to do, and what partly completed as three separate parameters
+  so none can be skipped.
+- `[devb]` **`TraceGlassPanel`, `TraceIconButton`, and a `hairlineBorder` modifier** — the first of the
+  component library, extracted from what was already on screen rather than invented.
+- `[devb]` **Shared design tokens.** `TraceMotion` holds every duration and easing; `TraceShape` names
+  radii by role because Material's small/medium/large ramp cannot express one; `TraceSize` holds fixed
+  component dimensions so a spacing change can no longer silently resize a control.
+- `[devb]` **`LocalMotionEnabled`**, one theme-level flag folding reduced motion, battery saver, and
+  lifecycle state, all observed live.
+- `[deva]` **Apache 2.0 `LICENSE`.** The open Phase 0 licence question, resolved by the owner.
+- `[deva]` **`DESIGN_LANGUAGE.md`**, now the authority for all UI work.
+- `[deva]` **Phase 0 foundation.** The app builds, and Dev B is unblocked.
+  - Gradle project on AGP 8.13.0 / Kotlin 2.2.0 / Gradle 9.2.1, namespace `com.trace`, minSdk 31,
+    compileSdk and targetSdk 37, Java 17. Every dependency version pinned exactly.
+  - Theme tokens with contrast measured, a serif type scale, spacing and radius scales, and
+    `LocalReducedMotion` provided at theme level and observed live.
+  - Room database with twelve tables, indices, exported schema committed, and no destructive-migration
+    fallback. Document ingest and routine save are single transactions.
+  - Core contracts: `Capability`, `CapabilityResult`, `StructuredIntent`, `Router`, `RouterOutcome`,
+    `Dispatcher`, `ModelHarness`, and `AuditLog`.
+  - Hilt modules for the database, DAOs, and coroutine dispatchers, including a dedicated single-thread
+    inference dispatcher.
+  - `README.md`, `.gitignore`, a unit test covering the embedding blob encoding and enum decoding, and
+    instrumented tests covering the schema on real SQLite.
+- `[deva]` Planning documents: `todo.md` with the phase plan and Dev A / Dev B split, `decisions.md`,
+  `changelog.md`, and `for_devb.md` as Dev B's self-contained brief.
+
+### Changed
+
 - `[devb]` **The LiteRT-LM runtime is wired in.** `LiteRtModelHarness` is the single `@Singleton`
   implementation of `ModelHarness` and the only thing that constructs an `Engine` — serialised through
   the one-thread inference dispatcher *and* a `Mutex`, so neither two native calls nor two logical
@@ -83,7 +156,6 @@ Bad: `[deva] Updated RoutineWorker.kt and added BootReceiver.kt and modified the
 - `[deva]` Planning documents: `todo.md` with the phase plan and Dev A / Dev B split, `decisions.md`,
   `changelog.md`, and `for_devb.md` as Dev B's self-contained brief.
 
-### Changed
 
 - `[devb]` **`DESIGN_LANGUAGE.md` is the authority for all UI work**, superseding the Design
   Specification's UI sections, which the owner deprecated. The palette is cyan Slime Blue `#4DB6AC`.
@@ -126,22 +198,42 @@ Bad: `[deva] Updated RoutineWorker.kt and added BootReceiver.kt and modified the
 
 ### Fixed
 
+- `[deva]` **The model loads on the GPU.** Requesting a GPU *audio* backend fails engine creation
+  outright, and passing a compiled-kernel `cacheDir` for an app-internal model path fails it too — v1's
+  working config does neither. Both are gone, and the model now loads on GPU with speculative decoding
+  in 14-21s. Verified on a Samsung SM-M356B, Exynos 1380 / Mali.
+- `[deva]` **Speculative decoding is only attempted when the model file reports supporting it**, using
+  v1's `Capabilities` probe instead of setting the flag blind.
+- `[deva]` **A GPU that will not load falls back to the CPU** rather than reporting "cannot run on this
+  device" on hardware that runs it fine. The manifest declares OpenCL `required="false"`; this is where
+  that promise is kept. Every load failure is logged with its cause — the exception used to be swallowed,
+  which made this the one failure in the app nobody could diagnose.
+- `[deva]` **The transcript stays pinned to the end of a streaming reply**, and lets go the moment the
+  user drags. Two faults: `scrollToItem(index)` pins an item's *top*, so a reply taller than the screen
+  kept yanking the reader back to the start of the message and fought every attempt to reach the end;
+  and follow state was driven by `isScrollInProgress`, which is also true during the transcript's own
+  programmatic scrolls, so it read its own scrolling as user input.
+- `[deva]` **The stated download size matches the file.** 2,588,147,712 bytes is 2.59 GB decimal but
+  2.41 GiB, and the label used the binary figure while the progress readout formatted decimal — so the
+  download counted up past its own stated total and looked broken at the finish line.
+- `[deva]` Chat text is `bodyMedium` rather than `bodyLarge`. At 17sp a phone-width transcript fit so
+  few words per line that a reply broke into a tall column of fragments.
+- `[deva]` Reply timings are dimmed to 55% — a footnote about the answer, not part of it.
+- `[deva]` The mascot's anger shake is gentler: ±1dp tapering to rest at 70ms per step, from ±2dp at
+  50ms, which read as violent rather than annoyed.
 - `[devb]` **The mascot now stops.** Its shape-shift, blink, and glance loops plus breathing and float
   ran unconditionally — animating with reduced motion on, in battery saver, and while the app was off
   screen. All are gated now, and when motion is off it holds a resting pose rather than freezing
   mid-squash. The wink stays ungated: it is feedback for a tap, not idle decoration.
 - `[devb]` **The mascot's anger shake actually shakes, and is deterministic.** It read `random()` during
-  composition, so it only re-rolled on an unrelated recomposition — the body turned red but barely
-  moved. It now steps a fixed pattern from a coroutine, seeded from one generator so a run reproduces.
-- `[devb]` **The mascot was invisible to screen readers** — a clickable with no label. It now has a
-  content description and a label for its tap.
+  composition, so it only re-rolled on an unrelated recomposition — the body turned red but barely moved.
+- `[devb]` **The mascot was invisible to screen readers** — a clickable with no label.
 - `[devb]` **Light mode `surface` was the background colour**, so a card, sheet, or input field was
   indistinguishable from the screen behind it.
 - `[devb]` **`outline` was the same colour as the surface it sat on**, measuring 1.20:1 light and 1.31:1
   dark — any stock outlined Material component drew a border nobody could see.
 - `[deva]` Nav tab switches no longer cross-fade. The default animated alpha across the whole container,
   so two destinations were partly transparent at once and their centred headlines visibly overlapped.
-  An opaque screen background does not help, because the blend happens above it.
 - `[deva]` Secondary text and outlines failed WCAG AA in both themes — 3.3:1 light and 4.1:1 dark. They
   looked correctly restrained and were quietly unreadable, which is the worst combination.
 

@@ -116,14 +116,47 @@ The mascot is Trace's personality. Lives at the centre of the home screen.
 | Float | Oscillates ±5dp vertically on a 2.5s sine loop |
 | Shape Shifting | Randomly morphs between a tall blob and flat puddle every 5-12s |
 
+### Docked Mascot
+Once a conversation starts, the mascot leaves the centre of the home screen and docks immediately right
+of the hamburger menu, at avatar size. The transcript is the content of the screen at that point, and two
+mascots — one in the bar, one in the middle — would be one too many.
+
+It keeps its breathing and its reactions while docked. Users who find a moving companion beside text they
+are reading distracting can turn it off with **Live mascot** in Settings.
+
 ### Context & Interaction States
 | State | Trigger | Visual |
 |---|---|---|
 | Typing | Keyboard opens | Glides to the bottom above the input field, scales down |
 | Wink | Tapping UI buttons (e.g., Send, Attach) | Eyes squint for 300ms instantly |
-| Angry | 5+ taps within 2 seconds | Body turns deep red, shakes |
+| Angry | 5+ taps within 2 seconds | Body turns deep red, shakes gently — ±1dp tapering to rest, not a hard jitter |
 
 ---
+
+## 6b. Chat Transcript
+
+The user's turn sits in a `surfaceVariant` bubble, capped at 300dp so it never spans the screen. The
+model's reply is plain text on the background, unboxed — the reply *is* the content, and boxing it makes a
+two-paragraph answer read as a quoted aside. This also keeps the accent out of the transcript entirely,
+which §2 reserves for actions.
+
+Both are `bodyMedium` (15sp). At `bodyLarge` a phone-width column fit so few words per line that replies
+broke into tall stacks of fragments.
+
+**Markdown is rendered, not shown.** Lists, bold, inline code, and fenced code blocks all format. Code is
+the single exception to the serif rule in §3 — it is set in a monospace face, because alignment and
+telling `l` from `1` is the entire point. Nothing else departs from the type scale.
+
+**While the model works**, the reply slot shows one status verb — *pondering*, *drafting*, *cooking*,
+*resonating* and others, picked at random — with animated dots. The verb is fixed for the whole reply:
+one that changed mid-wait read as several failed attempts rather than one in progress. The motion lives in
+the dots, which are ignorable in a way a changing word is not.
+
+**Under a finished reply**, at 55% `onSurfaceVariant` in `labelSmall`: elapsed time, approximate decode
+rate, and time-to-first-token when it exceeds 1.5s. A footnote about the answer, never competing with it.
+
+**The view follows a streaming reply** and stops the instant the user drags, resuming when they let go at
+the bottom.
 
 ## 7. Input Field (TraceInput)
 
@@ -168,3 +201,27 @@ Opens from the right on history icon tap. Visually identical and cohesive with t
 - First launch: follows system dark/light setting (including the splash screen).
 - User override: Dark Mode toggle in Settings (scaled down slightly for sleekness).
 - Override persisted in SharedPreferences.
+
+## 10. Settings
+
+One screen, four sections: Appearance, Processor, Model parameters, System prompt. Model parameters are
+**not** a separate destination — they were a sidebar entry once, and splitting them from Settings only made
+users hunt for which of two screens held the control they wanted.
+
+Sliders carry both a label and a live value, plus one line saying what the parameter does in plain words.
+A setting that cannot take effect immediately says so rather than pretending: sampling applies to the next
+conversation, and changing the processor reloads the model and clears what it remembers.
+
+## 11. Onboarding
+
+The first screen introduces Trace before asking for anything. Name, one line on what it is, three concrete
+capabilities, the privacy promise, then the download button with the size on it.
+
+Concrete over adjectives: "answer questions about your own notes" is something a person can picture,
+"powerful AI assistant" is not. One screen, not a carousel — an onboarding flow standing between the user
+and a 2.6GB download is a worse first impression than one that gets out of the way.
+
+**Every number is real.** Size comes from the pinned artefact, percentage from bytes on disk, speed from a
+smoothed sample once it is long enough to be honest. Nothing estimates remaining time: over an unknown
+connection that figure is wrong often enough to discredit the numbers beside it. All sizes are decimal GB,
+matching how connections are sold — mixing in binary GiB once made a download count past its own total.

@@ -15,6 +15,9 @@ room = "2.8.4"
 hiltNavigation = "1.3.0"
 workRuntime = "2.10.0"
 
+# Markdown rendering for model replies. Same library v1 shipped.
+richtext = "1.0.0-alpha02"
+
 # On-device AI. Wired in Phase 1 (model harness) and Phase 4 (embeddings).
 litertlm = "0.11.0"
 mediapipeTasksText = "0.10.29"
@@ -47,6 +50,11 @@ androidx-material3 = { group = "androidx.compose.material3", name = "material3" 
 androidx-material-icons-core = { group = "androidx.compose.material", name = "material-icons-core" }
 androidx-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended" }
 androidx-navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version.ref = "navigation" }
+
+# A 2B model emits markdown whether or not you ask it to, so replies need a renderer rather than a
+# plain Text. commonmark is the parser, ui-material3 draws it with the app's own theme.
+richtext-commonmark = { group = "com.halilibo.compose-richtext", name = "richtext-commonmark", version.ref = "richtext" }
+richtext-ui-material3 = { group = "com.halilibo.compose-richtext", name = "richtext-ui-material3", version.ref = "richtext" }
 
 androidx-room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
 androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }

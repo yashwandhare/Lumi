@@ -112,19 +112,21 @@ Executed end to end by Dev B on the owner's reassignment, including the `[deva]`
       version catalogue. Pinned at `0.11.0`.
 - [x] `[deva]` Manifest `<uses-native-library>` entries for the GPU backend, `required="false"`. Four
       entries, not two: `libvndksupport.so` plus three `libOpenCL` variants the backend dlopens.
-- [x] `[deva]` `Engine` and `EngineConfig` wrapper. `Backend.GPU()` for text, vision, and audio, a
-      4096-token ceiling, and a compiled-kernel `cacheDir`.
-- [~] `[deva]` Call `engine.initialize()` off the main thread, behind a load-progress state with a
-      resumable failure path. **Done, but the load time is not measured yet** — the whole point of the
-      item was to write the number down. Needs a real run on the device with the model present.
+- [x] `[deva]` `Engine` and `EngineConfig` wrapper. Backend from the user's setting, a 4096-token
+      ceiling. **Vision and audio backends are null and there is no `cacheDir`** — both were stopping
+      the model from loading on GPU at all. See `decisions.md`.
+- [x] `[deva]` Call `engine.initialize()` off the main thread, behind a load-progress state with a
+      resumable failure path. **Measured on a Samsung SM-M356B (Exynos 1380, Mali): 14-21s on GPU with
+      speculative decoding, ~8-12s on CPU.** Nowhere near v1's 90-100s.
 - [x] `[deva]` Model lifecycle: initialize once, keep the `Engine` resident for the process lifetime.
       Enforced by `@Singleton` on `LiteRtModelHarness` plus a `Mutex`, so neither two native calls nor
       two logical generations can interleave.
 - [ ] `[deva]` **Verify Gemma 4 E2B `.litertlm` multimodality on a real device. PRD §5's top risk.**
-      Still open, and correctly flagged as an assumption rather than a fact: the vision and audio
-      backends are configured but nothing has confirmed this build accepts `Content.ImageBytes` or
-      `Content.AudioBytes`. If audio is unavailable, voice still works — ASR runs separately — but
-      "ask about this image" needs a documented fallback.
+      Still open. Both backends are now explicitly **null**, because requesting a GPU audio backend was
+      one of the two things stopping the model loading at all — see `decisions.md`. Phase 4 sets them
+      when the image path is built: vision on GPU, audio on CPU, following v1. If audio input turns out
+      to be unavailable, voice still works because ASR runs separately, but "ask about this image" needs
+      a documented fallback.
 - [x] `[deva]` Model acquisition: first-run download, no token, resumable. `gemma-4-E2B-it-gpu.litertlm`
       pinned by name, size, and SHA-256; stored in `filesDir`; verified by digest rather than existence;
       resumes from a `.part` file via `Range`. Consent-gated on a metered connection.
@@ -132,8 +134,9 @@ Executed end to end by Dev B on the owner's reassignment, including the `[deva]`
       `Sampling`. Values still need tuning against real device numbers.
 - [x] `[deva]` Stream with `sendMessageAsync(contents): Flow<Message>`. Also detects
       cumulative-vs-delta streaming by prefix, which the plan did not anticipate.
-- [~] `[deva]` `ExperimentalFlags.enableSpeculativeDecoding = true` before `initialize()`. **Set, not
-      measured.** The item asks for a measurement and a drop-if-unstable decision; neither has happened.
+- [x] `[deva]` `ExperimentalFlags.enableSpeculativeDecoding` before `initialize()`. Now gated on v1's
+      `Capabilities` probe rather than set blind; this build reports support. Stable on GPU across a
+      session of real use, so it stays. It is dropped before the backend is if a load fails.
 - [ ] `[deva]` Test LiteRT-LM's built-in tool calling **against Gemma 4 itself**. Untouched. Settle it
       before the router commits to a tool path in Phase 2.
 - [ ] `[deva]` Pick and bundle the embedding model as an APK asset. Untouched — there is no `assets/`
@@ -142,10 +145,11 @@ Executed end to end by Dev B on the owner's reassignment, including the `[deva]`
 - [x] `[deva]` System prompt and persona module. `TracePersona.SYSTEM`, shared by the chat path and
       every background one so the persona cannot drift between them.
 - [~] `[deva]` Audit log repository and write path. `AuditLog` exists from Phase 0 and is tested, but
-      **nothing writes to it yet** — no capability calls `record`. The point of building it early was
-      that every capability logs from its first commit; that still has to happen.
-- [~] `[devb]` Component library. `TraceGlassPanel`, `TraceIconButton`, `TraceInput`, `TraceBlob`, and
-      the three state components exist with shared tokens. Cards, dialogs, chips, and sliders do not.
+      **nothing writes to it yet** — no capability calls `record`. The chat capability now exists and is
+      the first that should. Wire it before Phase 3 adds routines, or the log starts life incomplete.
+- [~] `[devb]` Component library. `TraceGlassPanel`, `TraceIconButton`, `TraceInput`, `TraceBlob`,
+      `MarkdownText`, and the three state components exist with shared tokens. Cards, dialogs, and chips
+      do not; sliders are in use on the settings screen but unstyled.
 - [x] `[devb]` Mascot composable. The fantasy slime per `DESIGN_LANGUAGE.md` §6, with a gradient body,
       eyes, and a glow aura — a deliberate departure from "simple circular blob".
 - [x] `[devb]` Mascot breathing animation, gated on `LocalMotionEnabled` so it respects reduced motion,
@@ -184,13 +188,18 @@ The router is the architectural centre of the product. Everything else dispatche
       `Capability` interface. Design Spec §5.
 - [ ] `[deva]` Router uncertainty path: ask for clarification rather than execute an ambiguous
       action. Design Spec §38.
-- [ ] `[deva]` Chat capability: streaming generation, per-chat context memory, history in Room.
+- [x] `[deva]` Chat capability: streaming generation, per-chat context memory, history in Room. One
+      session id per conversation holds the KV cache; new-chat resets it. Conversations persist and are
+      reopenable from the history drawer. **Not yet behind the `Capability` interface** — it is wired
+      straight from the view model to the harness, and moves behind the dispatcher when the router lands.
 - [ ] `[deva]` Persistent memory: explicit "remember this" writes, retrievable across chats.
 - [ ] `[deva]` Tool architecture through the same dispatcher: calculator, calendar, reminders,
       device actions. One dispatch path, not two. Design Spec §9.
 - [ ] `[deva]` Router unit tests: routine commands, RAG requests, file requests, device commands,
       journal input, SOS phrases, and ambiguous input. Design Spec §40.
-- [ ] `[devb]` Chat screen: message list, streaming render, attachment chips, scroll behaviour.
+- [x] `[devb]` Chat screen: message list, streaming markdown render, follow-scroll that yields to touch,
+      status verb while generating, reply timings. Attachment chips still to do — the attach sheet opens
+      but nothing is picked up from it yet.
 - [ ] `[devb]` Interpreted-intent surface. Where an action has consequence, show what Trace
       understood before it acts.
 - [ ] `[devb]` Navigation wiring for the Data, Time, and Safety sections.

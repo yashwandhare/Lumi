@@ -572,3 +572,79 @@ this on size grounds should know the cost is debug-only.
 **Now pinned.** It was declared as a bare string with no version, resolving through the Compose BOM — the
 only unpinned dependency in the project, against an explicit rule that nothing floats. It is a
 version-catalogue entry like its siblings as of this entry.
+
+### [deva] 2026-08-15 — The GPU failed because of the audio backend and the cache directory
+
+`Engine.initialize()` failed on GPU with `NOT_FOUND: TF_LITE_PREFILL_DECODE not found in the model`, and
+then — after the model artefact was corrected — kept failing on GPU while succeeding on CPU. Two causes,
+both differences from v1's working configuration:
+
+1. **A GPU audio backend fails engine creation.** v1's `EngineConfig` carries the comment "must be CPU"
+   beside its audio backend. v2 was requesting `Backend.GPU()` for text, vision, *and* audio.
+2. **A `cacheDir` for an app-internal model path fails it too.** v1 passes a cache directory only for
+   models loaded from `/data/local/tmp` and null otherwise. v2 was always passing one.
+
+**Both vision and audio backends are now null** until the multimodal path actually exists. Configuring
+backends for capabilities nothing in the app exercises bought nothing but this failure. Phase 4 sets
+them when image input lands — vision on GPU, audio on CPU, following v1.
+
+**Verified:** GPU with speculative decoding loads in 14-21s on a Samsung SM-M356B (Exynos 1380, Mali).
+
+**Also adopted from v1:** `Capabilities(modelPath).hasSpeculativeDecodingSupport()`, so the flag is only
+set when the model file reports supporting it rather than set blind. This build reports true.
+
+**And the swallowed exception is gone.** `loadEngine` caught `Throwable` and discarded it, which made
+this the one failure in the app nobody could diagnose — the user saw "could not start the model" and the
+log said nothing. Every attempt now logs its cause. That, not the config, is why this took a device
+session to find.
+
+### [deva] 2026-08-15 — CPU stays the default backend even though GPU is faster
+
+GPU is several times faster where it works, and the owner's device runs it well. CPU remains the default.
+
+**Why:** a GPU backend that fails takes tens of seconds to fail, on every launch, and lands the user on
+an error screen. CPU is slower but starts everywhere. The people this product is for — the ones on
+mid-range hardware with no support to call — are exactly the ones a GPU-by-default choice would strand.
+
+**Auto exists for the middle ground** and tries GPU first, so a user who never opens settings on capable
+hardware still gets the fast path once they choose it. An explicit GPU choice that fails says so and
+points at the setting, rather than silently falling back — a user who asked for GPU deserves to know it
+did not happen.
+
+### [deva] 2026-08-15 — Replies are rendered as markdown, using the library v1 shipped
+
+`richtext-commonmark` and `richtext-ui-material3`, pinned at v1's `1.0.0-alpha02`.
+
+**Why a renderer at all:** a 2B instruction-tuned model emits markdown whether or not it is asked to.
+A plain `Text` showed users `**bold**`, backticks, and `1.` markers as literal characters — which reads
+as broken output rather than as plain text, and is worse than either extreme.
+
+**Why an alpha dependency:** it is what v1 shipped and it works. The alternative is writing a markdown
+parser during a seven-day build.
+
+**Code is the one place the type scale is broken.** The design language puts prose in serif and reserves
+sans for labels; neither can render code, because column alignment and telling `l` from `1` from `I` is
+the entire point of a monospace face. So code blocks and inline code go monospace, and nothing else does.
+
+### [deva] 2026-08-15 — Sampling changes apply to the next conversation, not the open one
+
+The runtime fixes sampling when a `Conversation` is created, so the settings sliders cannot affect a chat
+already in progress. The screen says so plainly.
+
+**Why not rebuild the session on change:** that would discard the model's memory of the conversation the
+user is in the middle of. A setting that takes effect on the next conversation is a mild surprise; a
+setting that silently wipes your chat context is a bad one. Changing the *backend* does reload — it has
+to — and that row warns before it does.
+
+### [deva] 2026-08-15 — Token counts are approximate, and labelled as such
+
+Reply metrics show `~14 tok/s`, with the tilde carrying real meaning: there is no tokenizer on this side
+of the JNI boundary, so the count is derived from character length at four characters per token.
+
+**Why show it at all:** the decode rate is the single most useful number for judging whether a backend
+or a parameter change helped, and an approximate rate answers that question. **Why the tilde:** the
+alternative is a precise-looking number that is quietly wrong, which is worse than an honest estimate.
+
+**Measured from the first token, not from the send.** Prefill on a 2B model is a second or more, and
+folding it into the rate would report a figure unrelated to how fast text actually appears.
+Time-to-first-token is reported separately, and only when it is slow enough to be the story.

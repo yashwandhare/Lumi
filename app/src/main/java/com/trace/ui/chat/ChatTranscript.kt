@@ -34,6 +34,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import com.trace.core.ai.GenerationMetrics
+import com.trace.ui.components.MarkdownText
 import com.trace.ui.theme.LocalMotionEnabled
 import com.trace.ui.theme.TraceShape
 import com.trace.ui.theme.spacing
@@ -155,7 +156,10 @@ private fun ModelTurn(turn: ChatTurn, thinkingVerb: String?) {
         if (turn.streaming && turn.text.isEmpty()) {
             ThinkingLabel(verb = thinkingVerb ?: THINKING_VERBS.first())
         } else {
-            Text(
+            // Rendered as markdown, including mid-stream. Half-finished syntax is tolerated by the
+            // parser — an unclosed `**` or an open fence just renders as text until its partner
+            // arrives, which looks like the reply still being written rather than like a glitch.
+            MarkdownText(
                 text = turn.text,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onBackground,

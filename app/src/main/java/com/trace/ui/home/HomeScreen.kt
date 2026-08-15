@@ -71,7 +71,7 @@ fun HomeScreen(
             Spacer(Modifier.weight(1f))
 
             TraceBlob(
-                modifier = Modifier.size(71.dp),
+                modifier = Modifier.size(70.dp),
                 isTyping = isTyping,
                 reactionTrigger = reactionCount
             )
