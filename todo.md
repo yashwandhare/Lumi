@@ -9,6 +9,14 @@ Dev B proposes changes to it through the process in `for_devb.md`; Dev A merges 
 - **Specs:** `Trace_PRD_v2.docx` and `Trace — Design Specification.docx`. Both are authoritative.
   Where they disagree with each other or with reality, this file records the resolution and
   `decisions.md` records why.
+- **UI spec:** `DESIGN_LANGUAGE.md` **supersedes the Design Specification's UI sections.** The owner
+  ruled on Aug 15 that the docx UI sections are mostly deprecated because the markdown has drifted from
+  them deliberately. Every UI component, optimization, and design decision refers to
+  `DESIGN_LANGUAGE.md`. Where this file still says "rice-paper", "sumi", or "one olive accent", read
+  `DESIGN_LANGUAGE.md` §2 instead — the palette is now cyan Slime Blue `#4DB6AC`.
+- **Phase 1 ownership override:** the owner assigned Phase 1 **end to end to Dev B**, including the
+  `[deva]` items. Ownership tags below are left intact as a record of the original split. Dev B keeps
+  `changelog_devb.md` and `decisions_devb.md` current and precise so Dev A can regain context on return.
 - **v1 reference:** a local Trace v1 checkout, path differs per developer. Reference and reuse only.
   Read it, understand why it works, rewrite it clean. Never copy a file across unchanged.
 
@@ -81,19 +89,18 @@ rest of the phase is finished, so Dev B can start.
       `StructuredIntent`, `RouterOutcome`, `Dispatcher`, `ModelHarness`, `AuditLog`. DAOs are the data
       interface; repositories are added only where there is real logic to hold.
 - [x] `[deva]` `.gitignore` and `README.md`.
-- [ ] `[deva]` **Choose Trace's licence.** Needs an owner decision, not an agent one — it interacts
-      with the one-time-payment and B2B2C licensing story in PRD §2.2. Nothing is inherited from the
-      v1 Gallery fork, so the choice is genuinely open. Apache 2.0 is the conventional default.
+- [x] `[deva]` **Choose Trace's licence.** Resolved by the owner: **Apache 2.0**. `LICENSE` is in the
+      repository root. Nothing was inherited from the v1 Gallery fork, so this was a free choice.
 - [x] `[deva]` `./gradlew assembleDebug` green, `testDebugUnitTest` green, `assembleRelease` green
       with R8 at 1.6MB.
-- [!] `[deva]` **Install on a device and confirm it launches.** Blocked: nothing is attached over adb,
-      and the `Pixel_9_Pro` emulator will not register with the adb daemon in this environment even
-      though `/dev/kvm` is accessible. This needs an arm64 phone plugged in — which Phase 1 requires
-      regardless, because the LiteRT-LM native runtime ships arm64 only and an x86_64 emulator cannot
-      run anything that touches the model. Plug a phone in and run
-      `./gradlew installDebug && adb shell am start -n com.trace/.MainActivity`.
-- [ ] `[devb]` Setup only: get v1 building locally, read both spec documents, read `for_devb.md`,
-      confirm Android Studio and a physical test device work.
+- [x] `[deva]` **Install on a device and confirm it launches.** Unblocked and done. Test hardware is a
+      **Motorola moto g54 5G** (`ZD222FFWFC`), Android 15 / SDK 35, `arm64-v8a`, 7.8GB RAM, 35GB free —
+      so the LiteRT-LM arm64-only native runtime can actually run. `adb` is at
+      `/home/yash/android-sdk/platform-tools/adb` and is **not on `PATH`**; export it per shell. Deploy
+      with `./gradlew installDebug && adb shell am start -n com.trace/.MainActivity`.
+- [x] `[devb]` Setup only: v1 builds locally, both spec documents read, `for_devb.md` read, device
+      confirmed working over adb. **Note:** `DESIGN_LANGUAGE.md` now supersedes the Design
+      Specification's UI sections — see `decisions_devb.md`.
 
 ## Phase 1 — Design system and model runtime
 
