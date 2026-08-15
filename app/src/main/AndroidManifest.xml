@@ -8,6 +8,14 @@
       Declaring them early would show users grants the app cannot yet justify.
     -->
 
+    <!--
+      The one network permission, and the only thing that uses it is the first-run model download.
+      Every feature works with the network disabled (decisions.md), and the single deliberate
+      exception — opt-in web search — is session-only and off by default.
+    -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
     <application
         android:name=".TraceApplication"
         android:allowBackup="false"
@@ -18,6 +26,19 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.Trace">
+
+        <!--
+          The GPU backend loads these through dlopen at runtime. Without the declarations the
+          loader refuses them on API 31+ and LiteRT-LM silently falls back to CPU, which is the
+          difference between a usable demo and an unusable one.
+
+          required="false" on both: a device without OpenCL must still install and run on CPU.
+        -->
+        <uses-native-library android:name="libvndksupport.so" android:required="false" />
+        <uses-native-library android:name="libOpenCL.so" android:required="false" />
+        <uses-native-library android:name="libOpenCL-car.so" android:required="false" />
+        <uses-native-library android:name="libOpenCL-pixel.so" android:required="false" />
+
 
         <!-- The mascot app icon is Dev B's Phase 1 task; the platform default applies until then. -->
 

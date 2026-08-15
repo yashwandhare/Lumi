@@ -85,6 +85,9 @@ dependencies {
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
 
+    // On-device inference. Pinned in the version catalogue, never latest.release — see decisions.md.
+    implementation(libs.litertlm)
+
     implementation(libs.hilt.android)
     implementation(libs.hilt.navigation.compose)
     ksp(libs.hilt.compiler)
