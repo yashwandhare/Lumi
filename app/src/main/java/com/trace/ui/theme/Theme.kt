@@ -6,7 +6,10 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Shapes
+import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -33,9 +36,17 @@ val LocalReducedMotion = staticCompositionLocalOf { false }
  * `Button` or `TextField` is already correct. The spacing scale and the reduced-motion
  * flag are provided alongside, since Material 3 has no slot for either.
  */
+val CohesiveShapes = Shapes(
+    small = RoundedCornerShape(16.dp),
+    medium = RoundedCornerShape(16.dp),
+    large = RoundedCornerShape(16.dp),
+    extraSmall = RoundedCornerShape(16.dp),
+    extraLarge = RoundedCornerShape(16.dp)
+)
+
 @Composable
 fun TraceTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    darkTheme: Boolean = false, // light mode is default as per user request
     content: @Composable () -> Unit,
 ) {
     CompositionLocalProvider(
@@ -45,7 +56,7 @@ fun TraceTheme(
         MaterialTheme(
             colorScheme = if (darkTheme) TraceDarkColorScheme else TraceLightColorScheme,
             typography = TraceTypography,
-            shapes = TraceShapes,
+            shapes = CohesiveShapes,
             content = content,
         )
     }
