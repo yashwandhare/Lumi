@@ -1,15 +1,18 @@
 package com.trace.ui.theme
 
+import android.content.BroadcastReceiver
 import android.content.ContentResolver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.database.ContentObserver
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
 import android.provider.Settings
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
-import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -20,38 +23,59 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.currentStateAsState
 
 /**
  * True when the user has turned animations off system-wide.
  *
- * Every animation in Trace must read this, including the mascot's breathing. It is a
- * theme-level value rather than a per-screen check so no screen can forget it.
+ * This answers "the user asked for stillness", which governs more than animation — it is also the
+ * reason to skip a decorative transition entirely rather than shorten it. For the narrower
+ * question "may I run this loop right now", read [LocalMotionEnabled], which folds this together
+ * with battery saver and lifecycle state.
  */
 val LocalReducedMotion = staticCompositionLocalOf { false }
 
 /**
- * The single theme wrapper. Everything renders inside it.
- *
- * Material 3 components pick up Trace's colours, type, and shapes from here, so a stock
- * `Button` or `TextField` is already correct. The spacing scale and the reduced-motion
- * flag are provided alongside, since Material 3 has no slot for either.
+ * §4: every Material shape token is 16dp, so a stock `Button` or `Card` is already correct
+ * without being told. The radii §4 assigns to specific roles — the 28dp input, the 24dp tile, the
+ * square full-bleed panel — live in [TraceShape] because Material has no slot for a role.
  */
 val CohesiveShapes = Shapes(
-    small = RoundedCornerShape(16.dp),
-    medium = RoundedCornerShape(16.dp),
-    large = RoundedCornerShape(16.dp),
-    extraSmall = RoundedCornerShape(16.dp),
-    extraLarge = RoundedCornerShape(16.dp)
+    extraSmall = TraceShape.default,
+    small = TraceShape.default,
+    medium = TraceShape.default,
+    large = TraceShape.default,
+    extraLarge = TraceShape.default,
 )
 
+/**
+ * The single theme wrapper. Everything renders inside it.
+ *
+ * Material 3 components pick up Trace's colours, type, and shapes from here, so a stock `Button`
+ * or `TextField` is already correct. The spacing scale and the two motion flags are provided
+ * alongside, since Material 3 has no slot for either.
+ *
+ * @param darkTheme defaults to the system setting, per `DESIGN_LANGUAGE.md` §9's "first launch
+ *   follows system". Callers that have loaded a persisted user override pass it explicitly.
+ */
 @Composable
 fun TraceTheme(
-    darkTheme: Boolean = false, // light mode is default as per user request
+    darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit,
 ) {
+    val reducedMotion = rememberReducedMotion()
+    val batterySaver = rememberBatterySaver()
+    val onScreen = LocalLifecycleOwner.current.lifecycle
+        .currentStateAsState().value
+        .isAtLeast(Lifecycle.State.STARTED)
+
     CompositionLocalProvider(
         LocalTraceSpacing provides TraceSpacing(),
-        LocalReducedMotion provides rememberReducedMotion(),
+        LocalReducedMotion provides reducedMotion,
+        LocalMotionEnabled provides (!reducedMotion && !batterySaver && onScreen),
     ) {
         MaterialTheme(
             colorScheme = if (darkTheme) TraceDarkColorScheme else TraceLightColorScheme,
@@ -63,18 +87,18 @@ fun TraceTheme(
 }
 
 /**
- * The spacing scale, read as `MaterialTheme.spacing.lg`.
+ * The spacing scale, read as `MaterialTheme.spacing.md`.
  *
- * Prefer this over literal dp values. A screen that invents its own padding is the first
- * step towards a screen that looks like it came from a different app.
+ * Prefer this over literal dp values. A screen that invents its own padding is the first step
+ * towards a screen that looks like it came from a different app.
  */
 val MaterialTheme.spacing: TraceSpacing
     @Composable @ReadOnlyComposable get() = LocalTraceSpacing.current
 
 /**
- * Observed rather than read once. Android does not deliver a configuration change when
- * the animation setting flips, so a plain read would leave a running app animating after
- * the user asked it to stop.
+ * Observed rather than read once. Android does not deliver a configuration change when the
+ * animation setting flips, so a plain read would leave a running app animating after the user
+ * asked it to stop.
  */
 @Composable
 private fun rememberReducedMotion(): Boolean {
@@ -98,3 +122,37 @@ private fun rememberReducedMotion(): Boolean {
 
 private fun animationsDisabled(resolver: ContentResolver): Boolean =
     Settings.Global.getFloat(resolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
+
+/**
+ * Observed for the same reason as [rememberReducedMotion]: there is no configuration change when
+ * power-save mode flips, and a user who enables it mid-session is asking the app to do less work
+ * right now — not the next time it is launched.
+ *
+ * `RECEIVER_NOT_EXPORTED` is correct despite this being a system broadcast: system broadcasts are
+ * exempt from the Android 13+ export requirement, and declaring the receiver unexported means no
+ * other app can spoof it.
+ */
+@Composable
+private fun rememberBatterySaver(): Boolean {
+    val context = LocalContext.current
+    val power = remember(context) {
+        context.getSystemService(Context.POWER_SERVICE) as? PowerManager
+    }
+    var saving by remember(power) { mutableStateOf(power?.isPowerSaveMode == true) }
+    DisposableEffect(power) {
+        if (power == null) return@DisposableEffect onDispose { }
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                saving = power.isPowerSaveMode
+            }
+        }
+        ContextCompat.registerReceiver(
+            context,
+            receiver,
+            IntentFilter(PowerManager.ACTION_POWER_SAVE_MODE_CHANGED),
+            ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
+        onDispose { context.unregisterReceiver(receiver) }
+    }
+    return saving
+}
