@@ -372,6 +372,7 @@ fun TraceLogoIcon(modifier: Modifier = Modifier) {
 private val SHAKE_PATTERN = listOf(-1f, 1f, -0.75f, 0.75f, -0.5f, 0.5f, -0.25f, 0f)
 private const val SHAKE_STEP_MS = 70L
 
+
 /**
  * How long the body takes to change mood colour. Longer than `TraceMotion.CALM_MS` on purpose — a
  * mood is meant to bleed in slowly, not switch. This is the mascot's own timing, so it stays here

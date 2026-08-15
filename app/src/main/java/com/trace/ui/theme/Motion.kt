@@ -37,6 +37,7 @@ object TraceMotion {
      */
     const val DRIFT_MS = 2500
 
+
     /** §6 wink. The eyes squint for exactly this long on a button tap. */
     const val WINK_MS = 300
 

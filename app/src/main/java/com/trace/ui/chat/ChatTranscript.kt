@@ -8,6 +8,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -22,7 +23,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -52,10 +57,54 @@ fun ChatTranscript(
 ) {
     val listState = rememberLazyListState()
 
-    // Follow the tail as tokens arrive. Keyed on the last turn's length so it also scrolls while a
-    // single reply grows, not only when a turn is added.
-    LaunchedEffect(turns.size, turns.lastOrNull()?.text?.length) {
-        if (turns.isNotEmpty()) listState.animateScrollToItem(turns.lastIndex)
+    /**
+     * Whether the view should track the growing reply.
+     *
+     * Dropped the moment the user drags, restored when they let go at the bottom. Reading real drag
+     * interactions rather than `isScrollInProgress` matters: that flag is also true during *our own*
+     * programmatic scrolls, so using it made the transcript's own scrolling look like user input and
+     * the follow state flickered.
+     */
+    var following by remember { mutableStateOf(true) }
+    var userDragging by remember { mutableStateOf(false) }
+
+    LaunchedEffect(listState.interactionSource) {
+        listState.interactionSource.interactions.collect { interaction ->
+            when (interaction) {
+                is DragInteraction.Start -> {
+                    userDragging = true
+                    following = false
+                }
+                is DragInteraction.Stop, is DragInteraction.Cancel -> userDragging = false
+            }
+        }
+    }
+
+    val atBottom by remember {
+        derivedStateOf {
+            val info = listState.layoutInfo
+            val last = info.visibleItemsInfo.lastOrNull() ?: return@derivedStateOf true
+            last.index >= info.totalItemsCount - 1 &&
+                last.offset + last.size <= info.viewportEndOffset + BOTTOM_SLACK_PX
+        }
+    }
+
+    // Resume following only once the finger is off and the view is actually at the end.
+    LaunchedEffect(userDragging, atBottom) {
+        if (!userDragging && atBottom) following = true
+    }
+
+    // Keyed on the last turn's length as well as the count, so it tracks a single reply as it grows
+    // rather than only jumping when a whole turn is added.
+    LaunchedEffect(turns.size, turns.lastOrNull()?.text?.length, following) {
+        if (following && turns.isNotEmpty()) {
+            // Pin the *bottom* of the last item. Plain `scrollToItem(index)` puts that item's top at
+            // the top of the viewport, which for a reply taller than the screen jumps the reader to
+            // the start of the message and then re-jumps there on every token — so trying to reach the
+            // end of a long answer felt like the list refusing to scroll down. The offset overshoots
+            // deliberately and the list clamps it to its real maximum.
+            listState.scrollToItem(turns.lastIndex, scrollOffset = MAX_SCROLL_OFFSET_PX)
+        }
     }
 
     LazyColumn(
@@ -81,7 +130,9 @@ private fun UserTurn(text: String) {
     ) {
         Text(
             text = text,
-            style = MaterialTheme.typography.bodyLarge,
+            // bodyMedium, not bodyLarge. A phone-width transcript at 17sp fits very few words per
+            // line, so a reply broke into a tall column of fragments; 15sp reads as prose.
+            style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier
                 // Never full width: a bubble spanning the screen stops reading as one side of a
@@ -106,7 +157,7 @@ private fun ModelTurn(turn: ChatTurn, thinkingVerb: String?) {
         } else {
             Text(
                 text = turn.text,
-                style = MaterialTheme.typography.bodyLarge,
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onBackground,
             )
         }
@@ -174,7 +225,7 @@ private fun ThinkingLabel(verb: String) {
     Text(
         // Trailing dots are padded to a fixed width so the text does not jitter as they cycle.
         text = verb + ".".repeat(dotCount) + " ".repeat(DOT_MAX - dotCount),
-        style = MaterialTheme.typography.bodyLarge,
+        style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.alpha(alpha),
     )
@@ -196,6 +247,22 @@ private fun GenerationMetrics.summary(): String = buildList {
 }.joinToString("  ·  ")
 
 private const val SLOW_FIRST_TOKEN_MS = 1_500L
+
+/**
+ * How near the bottom still counts as "at the bottom".
+ *
+ * Without slack, a reply whose last line lands a pixel below the viewport would drop the view out of
+ * follow mode and it would stop tracking mid-generation.
+ */
+private const val BOTTOM_SLACK_PX = 120
+
+/**
+ * Deliberate overshoot for the follow scroll, clamped by the list to its true maximum.
+ *
+ * Large enough that no single reply exceeds it, small enough not to risk overflow in the list's own
+ * arithmetic the way Int.MAX_VALUE would.
+ */
+private const val MAX_SCROLL_OFFSET_PX = 1_000_000
 
 /** Three dots, cycling once per [DOT_CYCLE_MS]. */
 private const val DOT_MAX = 3
