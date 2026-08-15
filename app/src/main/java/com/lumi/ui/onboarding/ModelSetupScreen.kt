@@ -80,7 +80,7 @@ fun ModelSetupScreen(
                 // wide capsule no corner radius can fix.
                 modifier = Modifier
                     .padding(bottom = MaterialTheme.spacing.xl)
-                    .size(SLEEPING_MASCOT),
+                    .size(width = SLEEPING_MASCOT_WIDTH, height = SLEEPING_MASCOT_HEIGHT),
             )
         } else {
             LumiBlob(modifier = Modifier.padding(bottom = MaterialTheme.spacing.xl))
@@ -290,11 +290,15 @@ private fun SetupProgress(state: ModelState, onRetry: () -> Unit) {
 }
 
 /**
- * Square. `RoundedCornerShape` percentages resolve against the smaller dimension, so a box wider than
- * tall turns 50% corners into flat vertical sides — which is exactly how earlier attempts became a
- * capsule. The spread comes from the corner percentages, not from the box.
+ * Narrower and slightly shorter than the home-screen mascot's 69dp, keeping a small wide-base bias.
+ *
+ * The width/height gap stays deliberately small. `RoundedCornerShape` percentages resolve against the
+ * *smaller* dimension, so a box much wider than tall turns the top corners into flat vertical sides and
+ * the mascot becomes a capsule — that is how three earlier attempts failed. At an 8dp gap the corner
+ * percentages still dominate the silhouette, and the extra width only settles the base.
  */
-private val SLEEPING_MASCOT = 92.dp
+private val SLEEPING_MASCOT_WIDTH = 66.dp
+private val SLEEPING_MASCOT_HEIGHT = 58.dp
 
 /** One decimal place. Two would imply a precision the user has no use for. */
 private fun Long.asGigabytes(): String = "%.1f GB".format(this / 1_000_000_000.0)

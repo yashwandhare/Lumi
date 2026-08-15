@@ -29,6 +29,7 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
@@ -471,9 +472,9 @@ fun LumiSleepingBlob(modifier: Modifier = Modifier) {
                     // not drained of contrast.
                     Brush.radialGradient(
                         colors = listOf(
-                            bodyGrey.copy(alpha = 0.86f),
-                            bodyGrey.copy(alpha = 0.70f),
-                            bodyGrey.copy(alpha = 0.52f),
+                            bodyGrey.copy(alpha = 0.60f),
+                            bodyGrey.copy(alpha = 0.46f),
+                            bodyGrey.copy(alpha = 0.32f),
                         ),
                     )
                 )
@@ -503,7 +504,7 @@ private fun ClosedEye() {
         modifier = Modifier
             .size(width = 8.dp, height = 2.dp)
             .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.background.copy(alpha = 0.75f))
+            .background(MaterialTheme.colorScheme.background.copy(alpha = 0.62f))
     )
 }
 
@@ -534,7 +535,10 @@ private fun SleepingZ(
 
     Text(
         text = "z",
-        style = MaterialTheme.typography.titleMedium.copy(fontSize = sizeSp.sp),
+        style = MaterialTheme.typography.labelMedium.copy(
+            fontFamily = FontFamily.SansSerif,
+            fontSize = sizeSp.sp,
+        ),
         color = MaterialTheme.colorScheme.onSurface.copy(
             // Fade in over the first third, out over the last third, so a Z never pops or vanishes.
             alpha = 0.85f * when {
@@ -564,10 +568,10 @@ private const val Z_RISE_DP = 18f
  * The bottom pair is rounded less than the awake mascot's 35/40, which is what widens the base — a
  * smaller corner radius leaves more straight edge, so the slime sits flatter and spreads.
  */
-private const val RELAXED_TOP_START = 40
+private const val RELAXED_TOP_START = 44
 private const val RELAXED_TOP_END = 50
-private const val SLEEPING_BOTTOM_END = 29
-private const val SLEEPING_BOTTOM_START = 33
+private const val SLEEPING_BOTTOM_END = 22
+private const val SLEEPING_BOTTOM_START = 26
 
 /**
  * §6 shake. A fixed pattern, stepped at [SHAKE_STEP_MS] — see the note at its use site for why this
