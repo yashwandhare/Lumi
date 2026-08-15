@@ -6,8 +6,9 @@ not a mirror of the git log.
 ## How to use this file
 
 - Newest entries at the top, under `## Unreleased`.
-- Prefix every entry with the author: `[deva]` or `[devb]`. Dev B keeps entries in `changelog_devb.md`
-  on the `devb` branch; Dev A folds them into this file at merge, prefixes intact.
+- Prefix every entry with the author: `[deva]` or `[devb]`. Dev B stages entries in `changelog_devb.md`
+  on the `devb` branch; Dev A folds them into this file at merge, prefixes intact, and empties the
+  staging file. **This file is the complete record** — read it rather than the `_devb` one.
 - Group entries under `Added`, `Changed`, `Fixed`, `Removed`.
 - One line per change. Say what changed for the user or for another developer, not which files moved.
 - Log a change when it alters behaviour, an interface another developer builds against, or a
@@ -22,47 +23,131 @@ Bad: `[deva] Updated RoutineWorker.kt and added BootReceiver.kt and modified the
 
 ## Unreleased
 
+> **The UI palette described in older entries below is dead.** `DESIGN_LANGUAGE.md` superseded the
+> Design Specification's UI sections on Aug 15. The accent is cyan Slime Blue `#4DB6AC`, not sumi-olive.
+> See `decisions.md`.
+
 ### Added
 
-- `[deva]` **Phase 0 foundation.** The app now builds, and Dev B is unblocked.
+- `[devb]` **The LiteRT-LM runtime is wired in.** `LiteRtModelHarness` is the single `@Singleton`
+  implementation of `ModelHarness` and the only thing that constructs an `Engine` — serialised through
+  the one-thread inference dispatcher *and* a `Mutex`, so neither two native calls nor two logical
+  generations can interleave. Loads once, stays resident. Requests the GPU backend with a 4096-token
+  ceiling, a compiled-kernel cache dir, and speculative decoding enabled before `initialize()`.
+  Streams via `sendMessageAsync`, detects cumulative-vs-delta streaming by prefix, and closes one-shot
+  conversations so background parsing never reaches the user's chat.
+- `[devb]` **`ModelStore` and `ModelDownloader` — the no-redownload guarantee.** The model lives in
+  `filesDir`, and is usable only when size **and** a recorded SHA-256 match. v1 checked existence alone,
+  which let a truncated file through to the native loader and read as "the app is broken". Downloads
+  resume from a `.part` file with a `Range` request and classify failures as retryable or permanent.
+- `[devb]` **First-run download and onboarding screen**, anchored on the mascot rather than a bare
+  progress bar. Every number is real — size from the pinned artefact, percentage from bytes on disk —
+  and nothing estimates a time, because a download over an unknown connection cannot be estimated
+  honestly. Consent-gated: a 1.9GB fetch on a metered plan is never started without asking.
+- `[devb]` **`ModelSetupScreen` gates the app on first run.** `MainActivity` observes
+  `ModelHarness.state` and hands off to `TraceApp` once `Ready`. A returning user whose model is on disk
+  passes through in a moment — it loads, not downloads.
+- `[devb]` **`TracePersona.SYSTEM`**, one short system instruction shared by the chat path and every
+  background one, so the persona cannot drift between them. Short on purpose: every token is prefill on
+  a 2B model.
+- `[devb]` **Manifest: `INTERNET` and `ACCESS_NETWORK_STATE`** — used only by the one-time model
+  download — plus four `uses-native-library` entries at `required="false"` that the GPU backend dlopens
+  on API 31+. Without them the loader refuses and LiteRT-LM silently falls back to CPU.
+- `[devb]` **`LoadingState` and `ErrorState`**, completing the state family beside `EmptyState`.
+  `LoadingState` takes the operation as a required argument so "Loading…" cannot be written by accident;
+  `ErrorState` takes what happened, what to do, and what partly completed as three separate parameters
+  so none can be skipped. Neither renders a red headline.
+- `[devb]` **`TraceGlassPanel`, `TraceIconButton`, and a `hairlineBorder` modifier** — the first of the
+  component library, extracted from what was already on screen rather than invented. The glass recipe
+  was hand-written in eight places.
+- `[devb]` **Shared design tokens.** `TraceMotion` holds every duration and easing; `TraceShape` names
+  radii by role because Material's small/medium/large ramp cannot express one; `TraceSize` holds fixed
+  component dimensions so a spacing change can no longer silently resize a control.
+- `[devb]` **`LocalMotionEnabled`**, one theme-level flag folding reduced motion, battery saver, and
+  lifecycle state, all observed live. `LocalReducedMotion` stays for the broader question.
+- `[deva]` **Apache 2.0 `LICENSE`.** The open Phase 0 licence question, resolved by the owner.
+- `[deva]` **`DESIGN_LANGUAGE.md`**, now the authority for all UI work.
+- `[deva]` **Phase 0 foundation.** The app builds, and Dev B is unblocked.
   - Gradle project on AGP 8.13.0 / Kotlin 2.2.0 / Gradle 9.2.1, namespace `com.trace`, minSdk 31,
     compileSdk and targetSdk 37, Java 17. Every dependency version pinned exactly.
-  - Theme tokens: rice-paper and sumi palette with one olive accent, light and dark, contrast measured
-    at 4.8:1 and 6.8:1. Serif type scale, spacing scale, radius scale. `LocalReducedMotion` provided at
-    theme level and observed live, so no animation can forget it.
+  - Theme tokens with contrast measured, a serif type scale, spacing and radius scales, and
+    `LocalReducedMotion` provided at theme level and observed live.
   - Room database with twelve tables, indices, exported schema committed, and no destructive-migration
     fallback. Document ingest and routine save are single transactions.
   - Core contracts: `Capability`, `CapabilityResult`, `StructuredIntent`, `Router`, `RouterOutcome`,
     `Dispatcher`, `ModelHarness`, and `AuditLog`.
   - Hilt modules for the database, DAOs, and coroutine dispatchers, including a dedicated single-thread
     inference dispatcher.
-  - Navigation across Home, Data, Time, Safety, and Settings, with real empty states.
-  - `README.md`, `.gitignore`, and a unit test covering the embedding blob encoding and enum decoding.
-- `[deva]` Planning documents for the v2 rebuild: `todo.md` with the full phase plan and Dev A / Dev B
-  split, `decisions.md` seeded with the v1 rules that still bind plus this session's calls,
+  - `README.md`, `.gitignore`, a unit test covering the embedding blob encoding and enum decoding, and
+    instrumented tests covering the schema on real SQLite.
+- `[deva]` Planning documents: `todo.md` with the phase plan and Dev A / Dev B split, `decisions.md`,
   `changelog.md`, and `for_devb.md` as Dev B's self-contained brief.
 
 ### Changed
 
-- `[deva]` Dropped `material-icons-extended`. It added 40MB of generated classes to the debug APK for
-  five navigation glyphs — 63MB total, 42MB of it in one dex file. `material-icons-core` brings the
-  debug APK to 30.5MB. The release APK is 1.6MB after R8.
+- `[devb]` **`DESIGN_LANGUAGE.md` is the authority for all UI work**, superseding the Design
+  Specification's UI sections, which the owner deprecated. The palette is cyan Slime Blue `#4DB6AC`.
+- `[devb]` **Phase 1 was executed end to end by Dev B**, including the items tagged `[deva]`. The tags
+  in `todo.md` remain as a record of the original split.
+- `[devb]` **Spacing token values now match `DESIGN_LANGUAGE.md` §5** — md 16, lg 24, xl 32, xxl 48,
+  previously 12/16/24/32 under the same names. `EmptyState`'s padding grew as a result. `xxxl`, `screen`,
+  and `gutter` are gone; nothing referenced them.
+- `[devb]` Light mode's `onPrimary` is `#171717`, not §2's `#FAFBF7` — white on the cyan accent measures
+  2.35:1 and fails AA; the dark value measures 7.35:1. The accent hue is unchanged.
+- `[devb]` `TraceTheme`'s `darkTheme` now defaults to the system setting rather than always light,
+  matching §9. Nothing on screen changes, but the default is no longer a trap for the next caller.
+- `[devb]` The mascot's typing pose triggers when the keyboard opens, not on the first character typed.
+- `[devb]` Icon buttons are 42dp and attachment tiles 24dp, per §4 and §7. The selected sidebar row now
+  carries the accent on its icon — one of the four places §2 says the accent belongs, and the only one
+  that was missing.
+- `[devb]` **Raw dp literals in `ui/` are down from 126 to 65**, and eight copies of the glass border
+  are down to one definition. The remaining literals are values §5's scale does not define, left alone
+  deliberately because rounding them would move Dev A's layout.
+- `[deva]` **`material-icons-extended` stays**, on the owner's call, superseding the Phase 0 entry that
+  dropped it — Trace's UI needs eleven glyphs `material-icons-core` does not carry, and R8 strips the
+  rest from release, so the cost is debug-only. **Now a pinned version-catalogue entry** rather than the
+  bare unversioned string it was.
 - `[deva]` minSdk is 31 and targetSdk 37, raised from the 26 and 36 originally planned. A device that
   can run Gemma 4 E2B locally is Android 12+ in practice.
 - `[deva]` No model may require an access token, a gate, or an account to download. Gemma 4 E2B IT is
-  ungated and fetched directly. FunctionGemma and EmbeddingGemma are both gated and therefore ruled
-  out. See `decisions.md`.
-- `[deva]` Router is now three tiers: regex rules, then embedding similarity against labelled example
+  ungated and fetched directly. FunctionGemma and EmbeddingGemma are both gated and therefore ruled out.
+- `[deva]` Router is three tiers: regex rules, then embedding similarity against labelled example
   phrases, then Gemma 4 only for what the first two cannot settle.
-- `[deva]` The small router model is a bundled APK asset shared with RAG retrieval — one embedder,
-  two jobs, no download.
+- `[deva]` The small router model is a bundled APK asset shared with RAG retrieval — one embedder, two
+  jobs, no download.
+- `[deva]` Voice targets native Android `SpeechRecognizer` and `TextToSpeech` for the Aug 22 build.
+  Sherpa-ONNX moves to Phase 8; v1 built the offline stack and reverted it for latency and glitching.
+- `[deva]` All persistence is Room. v1's proto DataStore stores are not carried forward.
+- `[deva]` Package namespace is `com.trace`, replacing v1's `com.trace.app`.
 - `[deva]` Branch workflow: Dev A works on `deva`, Dev B works on `devb`, and neither agent pushes to
   `main`. `main` advances only when the owner says so.
 - `[deva]` Trace v2 builds against the published LiteRT-LM Kotlin API and derives no code from Google
-  AI Edge Gallery, so no attribution is inherited from that fork. The Gemma model's own terms still
-  apply separately. See `decisions.md`.
-- `[deva]` Voice stack targets native Android `SpeechRecognizer` and `TextToSpeech` for the Aug 22
-  build. Sherpa-ONNX moves to Phase 8. v1 built the offline stack and reverted it for latency and
-  playback glitching; see `decisions.md`.
-- `[deva]` All persistence moves to Room. v1's proto DataStore stores are not carried forward.
-- `[deva]` Package namespace is `com.trace`, replacing v1's `com.trace.app`.
+  AI Edge Gallery, so no attribution is inherited from that fork.
+
+### Fixed
+
+- `[devb]` **The mascot now stops.** Its shape-shift, blink, and glance loops plus breathing and float
+  ran unconditionally — animating with reduced motion on, in battery saver, and while the app was off
+  screen. All are gated now, and when motion is off it holds a resting pose rather than freezing
+  mid-squash. The wink stays ungated: it is feedback for a tap, not idle decoration.
+- `[devb]` **The mascot's anger shake actually shakes, and is deterministic.** It read `random()` during
+  composition, so it only re-rolled on an unrelated recomposition — the body turned red but barely
+  moved. It now steps a fixed pattern from a coroutine, seeded from one generator so a run reproduces.
+- `[devb]` **The mascot was invisible to screen readers** — a clickable with no label. It now has a
+  content description and a label for its tap.
+- `[devb]` **Light mode `surface` was the background colour**, so a card, sheet, or input field was
+  indistinguishable from the screen behind it.
+- `[devb]` **`outline` was the same colour as the surface it sat on**, measuring 1.20:1 light and 1.31:1
+  dark — any stock outlined Material component drew a border nobody could see.
+- `[deva]` Nav tab switches no longer cross-fade. The default animated alpha across the whole container,
+  so two destinations were partly transparent at once and their centred headlines visibly overlapped.
+  An opaque screen background does not help, because the blend happens above it.
+- `[deva]` Secondary text and outlines failed WCAG AA in both themes — 3.3:1 light and 4.1:1 dark. They
+  looked correctly restrained and were quietly unreadable, which is the worst combination.
+
+### Removed
+
+- `[devb]` `TraceShapes`, an unused second `Shapes` object dead since the theme moved to the 16dp
+  `CohesiveShapes`, and the `SumiGreen`/`ZenIndigo` colours left behind by the olive palette.
+- `[deva]` The five-item bottom navigation bar, replaced by nine sidebar destinations with left and
+  right drawers per `DESIGN_LANGUAGE.md` §8.

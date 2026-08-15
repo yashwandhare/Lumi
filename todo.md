@@ -77,9 +77,10 @@ rest of the phase is finished, so Dev B can start.
       ranges, no `latest.release`. Toolchain versions taken from v1's working configuration.
 - [x] `[deva]` Hilt dependency injection, the `Application` class, and the coroutine modules —
       including the dedicated single-thread inference dispatcher the native runtime needs.
-- [x] `[deva]` Theme tokens: rice-paper white surface, sumi near-black text, one muted sumi-olive
-      accent, light and dark. Serif type scale, spacing scale, radius scale. Contrast measured at
-      4.8:1 light and 6.8:1 dark. Reduced-motion flag provided at theme level and observed live.
+- [x] `[deva]` Theme tokens. Light and dark, contrast measured, serif type scale, spacing and radius
+      scales, reduced-motion flag provided at theme level and observed live. **The palette described
+      here is superseded** — it was rice-paper/sumi/olive and is now cyan Slime Blue per
+      `DESIGN_LANGUAGE.md` §2.
 - [x] `[deva]` Room database. Twelve tables, indices, transactional document ingest and routine save,
       exported schema committed, no destructive-migration fallback. No `User` table — see
       `decisions.md`.
@@ -104,59 +105,60 @@ rest of the phase is finished, so Dev B can start.
 
 ## Phase 1 — Design system and model runtime
 
-- [ ] `[deva]` Add `com.google.ai.edge.litertlm:litertlm-android`, version pinned exactly in the
-      version catalogue. Google's docs use `latest.release` — resolve it once, then pin it.
-- [ ] `[deva]` Manifest `<uses-native-library>` entries for the GPU backend: `libvndksupport.so` and
-      `libOpenCL.so`, both `android:required="false"`. GPU does not work without them.
-- [ ] `[deva]` `Engine` and `EngineConfig` wrapper. Set `backend = Backend.GPU()`, plus
-      `visionBackend` and `audioBackend` for multimodal input, plus `cacheDir` — the docs say it
-      improves second-load time.
-- [ ] `[deva]` Call `engine.initialize()` off the main thread, behind a load-progress state with a
-      resumable failure path. The docs cite up to ~10s; v1 measured 90-100s on its own hardware and
-      model. Measure ours and write the number down.
-- [ ] `[deva]` Model lifecycle: initialize once, keep the `Engine` resident for the process lifetime,
-      never reload per request. Hard rule carried from v1.
+Executed end to end by Dev B on the owner's reassignment, including the `[deva]` items. Merged into
+`main` on Aug 15. Ownership tags are kept as a record of the original split.
+
+- [x] `[deva]` Add `com.google.ai.edge.litertlm:litertlm-android`, version pinned exactly in the
+      version catalogue. Pinned at `0.11.0`.
+- [x] `[deva]` Manifest `<uses-native-library>` entries for the GPU backend, `required="false"`. Four
+      entries, not two: `libvndksupport.so` plus three `libOpenCL` variants the backend dlopens.
+- [x] `[deva]` `Engine` and `EngineConfig` wrapper. `Backend.GPU()` for text, vision, and audio, a
+      4096-token ceiling, and a compiled-kernel `cacheDir`.
+- [~] `[deva]` Call `engine.initialize()` off the main thread, behind a load-progress state with a
+      resumable failure path. **Done, but the load time is not measured yet** — the whole point of the
+      item was to write the number down. Needs a real run on the device with the model present.
+- [x] `[deva]` Model lifecycle: initialize once, keep the `Engine` resident for the process lifetime.
+      Enforced by `@Singleton` on `LiteRtModelHarness` plus a `Mutex`, so neither two native calls nor
+      two logical generations can interleave.
 - [ ] `[deva]` **Verify Gemma 4 E2B `.litertlm` multimodality on a real device. PRD §5's top risk.**
-      The LiteRT-LM docs cite Gemma3n as the multimodal example, not Gemma 4. Confirm the `.litertlm`
-      build actually accepts `Content.ImageBytes` and `Content.AudioBytes` before any feature depends
-      on it. If audio input is unavailable, voice still works — ASR runs separately — but
+      Still open, and correctly flagged as an assumption rather than a fact: the vision and audio
+      backends are configured but nothing has confirmed this build accepts `Content.ImageBytes` or
+      `Content.AudioBytes`. If audio is unavailable, voice still works — ASR runs separately — but
       "ask about this image" needs a documented fallback.
-- [ ] `[deva]` Model acquisition: first-run download of the Gemma 4 E2B IT `.litertlm` build, with
-      progress and a resumable failure path. **No access token, no gate, no account.** The model is
-      ungated and Apache 2.0, so fetch it directly — if a candidate URL demands a token, it is the
-      wrong URL. Read the Gemma Terms of Use for whichever build ships.
-- [ ] `[deva]` `ConversationConfig`: `systemInstruction` for the persona, and
-      `SamplerConfig(topK 32-40, topP 0.9, temperature 0.4-0.5)`. Tune against real device numbers,
-      not v1's notes.
-- [ ] `[deva]` Stream with `sendMessageAsync(contents): Flow<Message>`, the docs' preferred path for
-      coroutine code. Not the blocking `sendMessage`.
-- [ ] `[deva]` Try `ExperimentalFlags.enableSpeculativeDecoding = true` before `initialize()`. The
-      docs call multi-token prediction "universally recommended for all tasks on GPU backends".
-      Measure it; drop it if it is unstable.
-- [ ] `[deva]` Test LiteRT-LM's built-in tool calling **against Gemma 4 itself** — a `ToolSet` with
-      `@Tool`/`@ToolParam` reflection, or an `OpenApiTool` with a JSON schema. Google's docs cite
-      FunctionGemma, which is gated and therefore ruled out, so Gemma 4's own native tool-calling is
-      the only path available. If it does not work through LiteRT-LM, fall back to a hand-rolled
-      registry with JSON extraction as v1 did. Settle this before the router commits to a tool path.
-- [ ] `[deva]` Pick and bundle the embedding model as an APK asset. It serves both the router's
-      similarity tier and RAG retrieval — one model, two jobs. Must be ungated and need no token:
-      Universal Sentence Encoder via MediaPipe `TextEmbedder` (~5.9MB, v1 shipped it), or
-      `all-MiniLM-L6-v2` via ONNX Runtime if MediaPipe `tasks-text` proves deprecated alongside its
-      LLM Inference API. EmbeddingGemma is gated, so it is out. Verify, then pin.
-- [ ] `[deva]` System prompt and persona module. Concise by default, 1-2 sentences unless the user
-      asks for more — a UX choice and a decode-speed constraint.
-- [ ] `[deva]` Audit log repository and write path. Build this first so every later capability can
-      log from its first commit instead of being retrofitted.
-- [ ] `[devb]` Component library: buttons, text fields, cards, dialogs, bottom sheets, chips,
-      toggles, sliders, navigation elements. One cohesive system, shared tokens. Design Spec §28.
-- [ ] `[devb]` Mascot composable. Simple circular blob with eyes, reused from v1's identity.
-- [ ] `[devb]` Mascot breathing animation: slow, low amplitude, deterministic. Must respect
-      reduced-motion settings, lifecycle state, and battery saver. Static when reduced motion is on.
-- [ ] `[devb]` Home screen. Mascot as visual anchor, one natural-language input, Type and Speak
-      affordances. Deliberately sparse — no feature grid, no dashboard cards, no conversation-first
-      layout. Design Spec §23.
-- [ ] `[devb]` Shared state components: loading, empty, error. Loading text names the real operation
-      ("Retrieving your notes…", not "Loading…"). Design Spec §31, §32, §33.
+- [x] `[deva]` Model acquisition: first-run download, no token, resumable. `gemma-4-E2B-it-gpu.litertlm`
+      pinned by name, size, and SHA-256; stored in `filesDir`; verified by digest rather than existence;
+      resumes from a `.part` file via `Range`. Consent-gated on a metered connection.
+- [x] `[deva]` `ConversationConfig`: `systemInstruction` for the persona and `SamplerConfig` from
+      `Sampling`. Values still need tuning against real device numbers.
+- [x] `[deva]` Stream with `sendMessageAsync(contents): Flow<Message>`. Also detects
+      cumulative-vs-delta streaming by prefix, which the plan did not anticipate.
+- [~] `[deva]` `ExperimentalFlags.enableSpeculativeDecoding = true` before `initialize()`. **Set, not
+      measured.** The item asks for a measurement and a drop-if-unstable decision; neither has happened.
+- [ ] `[deva]` Test LiteRT-LM's built-in tool calling **against Gemma 4 itself**. Untouched. Settle it
+      before the router commits to a tool path in Phase 2.
+- [ ] `[deva]` Pick and bundle the embedding model as an APK asset. Untouched — there is no `assets/`
+      directory and nothing references `TextEmbedder` or ONNX Runtime. **This blocks router tier 2 and
+      all of RAG**, so it is the first thing Phase 2 needs.
+- [x] `[deva]` System prompt and persona module. `TracePersona.SYSTEM`, shared by the chat path and
+      every background one so the persona cannot drift between them.
+- [~] `[deva]` Audit log repository and write path. `AuditLog` exists from Phase 0 and is tested, but
+      **nothing writes to it yet** — no capability calls `record`. The point of building it early was
+      that every capability logs from its first commit; that still has to happen.
+- [~] `[devb]` Component library. `TraceGlassPanel`, `TraceIconButton`, `TraceInput`, `TraceBlob`, and
+      the three state components exist with shared tokens. Cards, dialogs, chips, and sliders do not.
+- [x] `[devb]` Mascot composable. The fantasy slime per `DESIGN_LANGUAGE.md` §6, with a gradient body,
+      eyes, and a glow aura — a deliberate departure from "simple circular blob".
+- [x] `[devb]` Mascot breathing animation, gated on `LocalMotionEnabled` so it respects reduced motion,
+      battery saver, and lifecycle state, and holds a resting pose rather than freezing mid-frame. The
+      shake is deterministic from a seeded generator.
+- [x] `[devb]` Home screen. Mascot anchor, one natural-language input, attach and audio affordances,
+      time-of-day greeting. Sparse.
+- [x] `[devb]` Shared state components: `LoadingState` takes the operation as a required argument so
+      "Loading…" cannot be written by accident; `ErrorState` takes what happened, what to do, and what
+      partly completed as three separate parameters so none can be skipped.
+
+**Open before Phase 2 can start properly:** the embedder (blocks router tier 2 and RAG), tool-calling
+viability, multimodality verification, and the two measurements. Everything else in Phase 1 has landed.
 
 ## Phase 2 — Router, dispatcher, chat
 
@@ -221,8 +223,9 @@ silent and turn on wifi."
       transparency, not as the primary input method. Design Spec §25.
 - [ ] `[devb]` Routine list and detail screens.
 - [ ] `[devb]` Glance home-screen widget. Quick invoke, command entry, routine creation. Must match
-      the app exactly: rice-paper, sumi type, the one olive accent, the mascot, the same spacing.
-      Sparse. It should read as a piece of Trace, not a second product. Design Spec §27.
+      the app exactly: the same surfaces, the one Slime Blue accent, the mascot, the same spacing and
+      interaction states per `DESIGN_LANGUAGE.md`. Sparse. It should read as a piece of Trace, not a
+      second product.
 
 ## Phase 4 — RAG and Canvas
 

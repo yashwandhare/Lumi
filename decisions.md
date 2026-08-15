@@ -391,6 +391,184 @@ Three properties are load-bearing:
 `prepare()` never throws; failures land in observable state so every caller sees the same truth and can
 degrade to a non-model path.
 
+### [deva] 2026-08-15 — Resolved: Trace is Apache 2.0
+
+The open licence question from Phase 0 is settled by the owner: **Apache 2.0**, `LICENSE` in the
+repository root. Nothing was inherited from the v1 Gallery fork, so this was a free choice rather than
+a constrained one. The Gemma weights remain under their own terms regardless — that is a
+model-distribution obligation, not a code one.
+
+---
+
+# Part 3 — Dev B, folded in at merge
+
+Written by Dev B on the `devb` branch and folded into this file when `devb` merged into `main` on
+2026-08-15, prefixes intact. Dev B's staging file starts empty again from that point.
+
+### [devb] 2026-08-15 — `DESIGN_LANGUAGE.md` supersedes the Design Specification's UI sections
+
+The owner ruled that `Trace — Design Specification.docx` is **mostly deprecated for UI**, because
+`DESIGN_LANGUAGE.md` has drifted from it deliberately. Every UI component, optimization, and
+presentation-layer decision resolves against `DESIGN_LANGUAGE.md`. The docx stays authoritative for
+non-UI matters: architecture, data model, capability contracts, testing.
+
+**Why this needs an entry:** the entries above describe the palette as "rice-paper white, sumi
+near-black, one muted sumi-olive accent". That palette no longer exists. The accent is cyan Slime Blue
+`#4DB6AC`; surfaces are `#151515`/`#20201F` dark and `#FAFBF7`/`#E4E7DF` light. Anyone reading the older
+entries without this one would build to a dead spec.
+
+**Consequence:** the docx section numbers cited throughout `todo.md` still point at the docx. Read them
+as intent — "a component library exists", "loading states name the real operation" — and take concrete
+values from `DESIGN_LANGUAGE.md`.
+
+### [devb] 2026-08-15 — Light-mode `onPrimary` is `#171717`, not `#FAFBF7`
+
+`DESIGN_LANGUAGE.md` §2's light table specifies `On Primary` = `#FAFBF7`. That single cell is
+overridden; everything else in §2 stands, including `#4DB6AC` as the only accent in both modes.
+
+**Why:** `#FAFBF7` on `#4DB6AC` measures **2.35:1**. WCAG AA needs 4.5:1 for text and 3:1 for a
+graphical object, and contrast compliance is a hard rule. `#171717` on `#4DB6AC` measures **7.35:1**.
+The accent hue is untouched, so the mascot gradient and the one-accent rule are unaffected. This is the
+smallest deviation that clears the rule.
+
+**Reverse it only by** changing the accent hue for light mode, which is a larger spec change needing an
+owner decision.
+
+### [devb] 2026-08-15 — One motion gate, not three checks
+
+Reduced motion, battery saver, and lifecycle state collapse into a single `LocalMotionEnabled` provided
+at theme level, beside the existing `LocalReducedMotion`.
+
+**Why:** a caller required to check three conditions will eventually check two. All three mean the same
+thing to a composable — do not animate. Below `Lifecycle.State.STARTED` an infinite loop burns frames
+nobody sees; in battery saver an infinite animation is exactly the work the user is trying to avoid.
+
+**Both flags are kept.** `LocalReducedMotion` answers "the user asked for stillness" and also governs
+non-animation choices. `LocalMotionEnabled` answers "run this loop right now". When it is false, render
+the resting pose — a mascot stopped mid-squash looks broken; one at rest looks deliberate.
+
+### [devb] 2026-08-15 — Dev A's baseline UI is amended in place, never re-implemented
+
+`TraceBlob`, `TraceInput`, `HomeScreen`, and the sidebars are changed by the smallest diff that
+satisfies `DESIGN_LANGUAGE.md`, and new components adopt their style rather than introducing a second.
+
+**Why:** a rewrite of a working component is unreviewable — the original author cannot tell a bug fix
+from a preference, so every line becomes a negotiation. A small diff against a file they wrote is
+legible in a minute.
+
+**Recorded because it cost work.** A full `TraceBlob` rewrite (+332/-226) was written and reverted under
+this rule. It compiled and fixed four real defects, but it replaced the whole file. Those defects were
+then re-approached as a targeted diff. One item was deliberately **not** carried across and is still
+open: the gradient radius is a fixed `120f` rather than computed from density, so the mascot's gloss
+lands differently on every screen density. That is a real portability bug and should be reopened.
+
+### [devb] 2026-08-15 — Spacing token *values* changed, which moved existing layout
+
+`DESIGN_LANGUAGE.md` §5 is md 16 / lg 24 / xl 32 / xxl 48. The shipped tokens were md 12 / lg 16 /
+xl 24 / xxl 32 under the same names, so "always use tokens, never raw dp" could not be obeyed and be
+correct at once. The tokens now match §5.
+
+**Consequence, stated plainly:** `EmptyState.kt` was the only reader, so its padding changed —
+visibly. Made because §5 is authoritative, not because the old spacing looked wrong. `xxxl`, `screen`,
+and `gutter` were removed as unreferenced and undefined by §5; `hairline` moved to `TraceSize` at its
+real used value of 0.5dp rather than the declared 1dp.
+
+### [devb] 2026-08-15 — Nine sidebar destinations is the intended set, not a shortfall
+
+§8 numbers its list to 14 and elides items 6 through 13. The code has nine, and the owner confirmed
+nine are correct for the baseline scaffold — so §8's numbering is aspirational, not a specification.
+
+**Why record it:** a later reader counting nine against fourteen will assume five screens were dropped.
+They were never named. If destinations are added, §8 should name them at the same time.
+
+### [devb] 2026-08-15 — Glass is alpha and a hairline; there is no blur
+
+§4 describes glassmorphism as `surfaceVariant` at partial alpha with a 0.5dp border, "blurring the
+underlying content softly". The first half is implemented; **the blur is not.**
+
+**Why:** Compose has no backdrop blur. `Modifier.blur` blurs a composable's own content, not what is
+behind it. Blurring the background needs either a platform window-blur API, which does not apply to a
+Compose surface inside one window, or capturing the background to a layer and blurring it — expensive
+per frame and fragile across densities. Alpha plus the hairline reads as frosted because the palette is
+low-contrast to begin with. Revisit if a backdrop API lands; do not fake it by screenshotting.
+
+**Left deliberately alone, needing an owner call:** both sidebars use opaque `surface` rather than a
+translucent `surfaceVariant`, and the attachment sheet keeps 24dp top corners rather than §4's square
+"Sidebars & Modals" rule.
+
+### [devb] 2026-08-15 — The GPU build of the model, not the generic one
+
+The artefact is `gemma-4-E2B-it-gpu.litertlm` (2,008,432,640 bytes), not the generic build
+(2,588,147,712 bytes). ~580MB smaller, and it matches the `Backend.GPU()` the harness requests.
+
+**Why record it:** the two files sit in the same repository and look interchangeable; choosing the
+generic one adds 580MB to every download for no gain. Vendor-specific builds exist and are not used —
+the test device is a MediaTek mt6855 with no matching build, and a per-SoC matrix is a Phase 8 problem.
+
+Pinned by name, size, and SHA-256 in `GemmaModel`, so a silent upstream re-push fails loudly rather
+than loading a different file. Whether this build actually accepts image and audio input is still a
+device test, not an assumption.
+
+### [devb] 2026-08-15 — The model lives in `filesDir`, verified by size and digest, not existence
+
+Three connected choices, recorded together because they are the no-redownload guarantee and each is
+only meaningful with the other two.
+
+1. **`filesDir`, not `cacheDir`, not external storage.** `cacheDir` is what Android deletes first under
+   storage pressure, which would silently trigger a 1.9GB re-download. External storage invites the user
+   to delete the weights from a file manager. `filesDir` also survives `installDebug` over the same
+   signing key — which is why the dev loop must never `adb uninstall`.
+2. **`isReady` is size plus a recorded SHA-256, not `exists()`.** v1 checked existence only, its biggest
+   correctness hole: a file truncated by a crash mid-rename passes `exists()` and then fails inside the
+   native loader, reading to the user as "the app is broken" rather than "retry the download". The digest
+   is verified once when the bytes land and recorded, so a cold start never re-hashes 1.9GB.
+3. **The partial download survives a retry.** v1 wiped resume state each time, so a flaky connection
+   meant restarting 1.9GB. v2 resumes from the `.part` file with a `Range` request; if the server ignores
+   `Range` and replies 200, it restarts rather than concatenating.
+
+**Reverse only together and only for cause.** Dropping the digest alone reintroduces v1's hole; moving
+to `cacheDir` alone reintroduces silent re-downloads.
+
+### [devb] 2026-08-15 — The first model download is consent-gated; a present model is not
+
+The setup screen waits for consent when the model is absent and starts immediately when it is on disk.
+
+**Why:** 1.9GB is minutes of waiting and real money on a metered plan, so it is never started without
+asking. But prompting a user to "download" something they already have is the worse bug — a returning
+user should see a load bar, not a download prompt.
+
+**The gate lives in `MainActivity`, above `TraceApp` and its NavHost.** Putting it in the nav graph would
+let the drawer and routes appear before the model exists, making "did the model load" a navigation
+question rather than a lifecycle one.
+
+**`Unavailable` is split into recoverable and not,** decided in the downloader from HTTP status and
+preconditions rather than guessed in the UI. A dropped connection offers resume; a device that cannot
+run the model is told so honestly, with the rest of the app still usable.
 
 
 
+
+
+---
+
+# Part 4 — After the devb merge
+
+### [deva] 2026-08-15 — `material-icons-extended` stays, superseding the Phase 0 entry that dropped it
+
+The Phase 0 entry above dropped `material-icons-extended` because it put 40MB of generated classes into
+the debug APK — 63MB total, 42MB in one dex file — against `material-icons-core` at 30.5MB. **The owner
+has ruled that it stays.** Trace's UI needs the icons.
+
+**Why the reversal is right:** `TraceApp` and `HomeScreen` between them use `NoteAlt`, `Event`, `Book`,
+`Tune`, `FindInPage`, `History`, `GraphicEq`, `CameraAlt`, `PhotoLibrary`, `UploadFile`, and `Public`.
+None are in `material-icons-core`, so the alternative was hand-drawing eleven glyphs or shipping a
+navigation drawer with wrong icons. R8 strips the unused ones from release, so the cost is a debug-build
+and build-time cost rather than a shipped one. Final APK size is not the constraint for this build;
+runtime performance is.
+
+**Superseded on the decision, not on the measurements** — those numbers were real, and anyone reopening
+this on size grounds should know the cost is debug-only.
+
+**Now pinned.** It was declared as a bare string with no version, resolving through the Compose BOM — the
+only unpinned dependency in the project, against an explicit rule that nothing floats. It is a
+version-catalogue entry like its siblings as of this entry.
