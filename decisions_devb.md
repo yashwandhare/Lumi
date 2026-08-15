@@ -71,3 +71,48 @@ non-animation choices. `LocalMotionEnabled` answers "run this loop right now".
 **When it is false, show the resting state, never a frozen mid-frame.** A mascot stopped mid-squash
 looks broken; a mascot at rest looks deliberate.
 
+### [devb] 2026-08-15 — Dev A's baseline UI is amended in place, never re-implemented
+
+`TraceBlob`, `TraceInput`, `HomeScreen`, and the two sidebars in `TraceApp` are Dev A's established
+baseline. Dev B changes them by the smallest diff that satisfies `DESIGN_LANGUAGE.md` and `todo.md`,
+and new components adopt their style rather than introducing a second one.
+
+**Why:** the owner's instruction, and a good one. A rewrite of a working component is unreviewable —
+Dev A returning cannot tell a bug fix from a preference, so every line becomes a negotiation. A small
+diff against a file they wrote is legible in a minute.
+
+**Recorded because it cost work.** A full `TraceBlob` rewrite (+332/-226) was written and then
+reverted under this rule. It compiled and it fixed four real defects, but it replaced the whole file,
+so it was the wrong shape of change. Those defects are now being re-approached as a targeted diff:
+
+1. Neither motion flag has any consumer, and three `while (true)` loops run regardless.
+2. The shake reads `random()` during composition, so it is non-deterministic and mostly still —
+   `todo.md` asks for deterministic motion explicitly.
+3. No `contentDescription`, so a screen reader announces an unlabelled clickable.
+4. `.size(48.dp)` is chained after the caller's modifier, so `HomeScreen`'s 72dp request is silently
+   capped and the mascot draws smaller than its slot.
+
+**Deliberately not carried across from the reverted version**, because each is a change of appearance
+rather than a fix, and appearance is Dev A's call: geometry derived from the mascot's size instead of
+fixed dp; a gradient radius computed from density instead of a fixed `120f`; and one shared body
+composable behind both `TraceBlob` and `TraceLogoIcon`. The density point is a real portability bug —
+the mascot's gloss lands differently on every screen density — and it should be reopened once the
+targeted diff has landed.
+
+### [devb] 2026-08-15 — Spacing token *values* changed, which moves existing layout
+
+`DESIGN_LANGUAGE.md` §5's table is md 16 / lg 24 / xl 32 / xxl 48. The shipped `TraceSpacing` was
+md 12 / lg 16 / xl 24 / xxl 32 with extra `xxxl`, `screen`, `gutter`, and `hairline` steps. The names
+matched and the values did not, so the doc's "always use TraceSpacing tokens, never raw dp" could not
+be obeyed and be correct at the same time. The tokens now match §5.
+
+**Consequence, stated plainly:** `EmptyState.kt` is the only file that read these tokens, and its
+padding therefore changed — `spacing.xxl` went from 32dp to 48dp and `spacing.md` from 12dp to 16dp.
+That is a visible change to Dev A's baseline, made because §5 is authoritative, not because the old
+spacing looked wrong.
+
+`xxxl`, `screen`, and `gutter` were removed rather than kept: nothing referenced them, and §5 does not
+define them. `hairline` moved to `TraceSize` at its real used value of 0.5dp rather than the declared
+1dp — every call site in the app already passed 0.5dp by hand.
+
+
