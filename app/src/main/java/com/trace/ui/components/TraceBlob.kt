@@ -183,7 +183,7 @@ fun TraceBlob(
 
     val blobColor by androidx.compose.animation.animateColorAsState(
         targetValue = if (isAngry) MascotAngry else SlimeBlue,
-        animationSpec = tween(TraceMotion.CALM_MS),
+        animationSpec = tween(MOOD_SHIFT_MS),
         label = "BlobColor"
     )
 
@@ -283,12 +283,12 @@ fun TraceBlob(
 
         val darkInnerColor by androidx.compose.animation.animateColorAsState(
             targetValue = if (isAngry) MascotAngryCore else MascotCore,
-            animationSpec = tween(TraceMotion.CALM_MS),
+            animationSpec = tween(MOOD_SHIFT_MS),
             label = "DarkInnerColor"
         )
         val lightOuterColor by androidx.compose.animation.animateColorAsState(
             targetValue = if (isAngry) MascotAngryEdge else MascotEdge,
-            animationSpec = tween(TraceMotion.CALM_MS),
+            animationSpec = tween(MOOD_SHIFT_MS),
             label = "LightOuterColor"
         )
 
@@ -366,6 +366,13 @@ fun TraceLogoIcon(modifier: Modifier = Modifier) {
  */
 private val SHAKE_PATTERN = listOf(-2f, 2f, -1.5f, 1.5f, -2f, 1f, -1f, 2f)
 private const val SHAKE_STEP_MS = 50L
+
+/**
+ * How long the body takes to change mood colour. Longer than `TraceMotion.CALM_MS` on purpose — a
+ * mood is meant to bleed in slowly, not switch. This is the mascot's own timing, so it stays here
+ * rather than becoming an app-wide token.
+ */
+private const val MOOD_SHIFT_MS = 500
 
 /**
  * What a screen reader announces. The mascot is Trace's presence on the screen rather than a control,
