@@ -30,6 +30,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.lumi.core.ai.GemmaModel
 import com.lumi.core.ai.ModelState
 import com.lumi.ui.components.LumiBlob
+import com.lumi.ui.components.LumiSleepingBlob
 import com.lumi.ui.components.LumiGlassPanel
 import com.lumi.ui.theme.LumiShape
 import com.lumi.ui.theme.LumiSize
@@ -70,7 +71,20 @@ fun ModelSetupScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        LumiBlob(modifier = Modifier.padding(bottom = MaterialTheme.spacing.xl))
+        // Asleep while the model loads, awake for everything else. The easter egg: Lumi is not
+        // "starting", it is being woken up, and the mascot says so before the heading does.
+        if (state is ModelState.Loading) {
+            LumiSleepingBlob(
+                // Padding before size, deliberately. The other order — `.size().padding()` — applies the
+                // inset *inside* the sized box, leaving 96x64 for the body and rendering the slime as a
+                // wide capsule no corner radius can fix.
+                modifier = Modifier
+                    .padding(bottom = MaterialTheme.spacing.xl)
+                    .size(SLEEPING_MASCOT),
+            )
+        } else {
+            LumiBlob(modifier = Modifier.padding(bottom = MaterialTheme.spacing.xl))
+        }
 
         when {
             awaitingConsent -> ConsentStep(onDownload = viewModel::start)
@@ -217,24 +231,23 @@ private fun SetupProgress(state: ModelState, onRetry: () -> Unit) {
 
         ModelState.Loading -> {
             Text(
-                text = "Starting the model",
-                style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.onBackground,
-                textAlign = TextAlign.Center,
-            )
-            Text(
-                // Warned about honestly. A cold load is tens of seconds on this class of hardware; a
-                // user who was not told assumes the app has hung.
-                text = "Up to a minute the first time.",
-                style = MaterialTheme.typography.bodyMedium,
+                text = "Waking up Lumi",
+                // Smaller than the other headings here. There is nothing to decide on this screen and
+                // nothing to read — the mascot is the content, and the text is a caption for it.
+                style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.padding(top = MaterialTheme.spacing.md),
             )
             LinearProgressIndicator(
+                // Hairline rather than the Material default, and no track: a heavy bar under a sleeping
+                // mascot reads as machinery. Rounded ends so the sliver never looks clipped.
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = MaterialTheme.spacing.lg),
+                    .fillMaxWidth(0.45f)
+                    .padding(top = MaterialTheme.spacing.lg)
+                    .height(2.dp)
+                    .clip(CircleShape),
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+                trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
             )
         }
 
@@ -275,6 +288,13 @@ private fun SetupProgress(state: ModelState, onRetry: () -> Unit) {
         ModelState.Absent, ModelState.Ready -> Spacer(Modifier.height(MaterialTheme.spacing.xxl))
     }
 }
+
+/**
+ * Square. `RoundedCornerShape` percentages resolve against the smaller dimension, so a box wider than
+ * tall turns 50% corners into flat vertical sides — which is exactly how earlier attempts became a
+ * capsule. The spread comes from the corner percentages, not from the box.
+ */
+private val SLEEPING_MASCOT = 92.dp
 
 /** One decimal place. Two would imply a precision the user has no use for. */
 private fun Long.asGigabytes(): String = "%.1f GB".format(this / 1_000_000_000.0)

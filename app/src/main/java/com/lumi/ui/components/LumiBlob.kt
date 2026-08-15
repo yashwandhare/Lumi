@@ -1,7 +1,10 @@
 package com.lumi.ui.components
 
 import androidx.compose.animation.animateColor
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.EaseInOutSine
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -16,6 +19,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -26,6 +30,7 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.animateDpAsState
@@ -33,8 +38,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
 import com.lumi.ui.theme.LocalMotionEnabled
 import com.lumi.ui.theme.MascotAngry
@@ -129,6 +136,7 @@ fun LumiBlob(
 
 
     var clickCount by remember { mutableStateOf(0) }
+    var doubleTapCount by remember { mutableStateOf(0) }
     val isAngry = clickCount >= LumiMotion.ANGER_TAPS
 
     androidx.compose.runtime.LaunchedEffect(clickCount) {
@@ -239,22 +247,54 @@ fun LumiBlob(
     )
     val finalOffsetX = if (isAngry) shakeOffset else 0f
 
+    /**
+     * The double-tap bounce: up quickly, then settle back with a little overshoot.
+     *
+     * A separate multiplier rather than a change to [scale], so it composes with breathing and the
+     * typing shrink instead of fighting them — a bounce that replaced the breathing scale would stutter
+     * whenever the two disagreed.
+     *
+     * Not gated on [LocalMotionEnabled]: this is the direct answer to a gesture the user just made, and
+     * reduced motion means no idle decoration, not an app that ignores input. Same reasoning as the wink.
+     */
+    val bounce = remember { Animatable(1f) }
+    androidx.compose.runtime.LaunchedEffect(doubleTapCount) {
+        if (doubleTapCount > 0) {
+            bounce.animateTo(BOUNCE_PEAK, tween(BOUNCE_UP_MS, easing = EaseInOutSine))
+            bounce.animateTo(
+                1f,
+                spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
+            )
+        }
+    }
+
+    fun poke() {
+        clickCount++
+        isWinking = true
+        scope.launch {
+            kotlinx.coroutines.delay(LumiMotion.WINK_MS.toLong())
+            isWinking = false
+        }
+    }
+
     Box(
         modifier = modifier
             .offset(x = finalOffsetX.dp, y = offsetY.dp)
-            .scale(scale)
-            .semantics { contentDescription = MASCOT_DESCRIPTION }
-            .clickable(
-                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                indication = null,
-                onClickLabel = "Poke Lumi"
-            ) {
-                clickCount++
-                isWinking = true
-                scope.launch {
-                    kotlinx.coroutines.delay(LumiMotion.WINK_MS.toLong())
-                    isWinking = false
-                }
+            .scale(scale * bounce.value)
+            .semantics {
+                contentDescription = MASCOT_DESCRIPTION
+                // The tap gesture below replaces `clickable`, which would swallow the double tap. This
+                // keeps the mascot reachable by a screen reader, which `pointerInput` alone would not.
+                onClick(label = "Poke Lumi") { poke(); true }
+            }
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onTap = { poke() },
+                    onDoubleTap = {
+                        doubleTapCount++
+                        poke()
+                    },
+                )
             }
             .size(48.dp),
         contentAlignment = Alignment.Center
@@ -361,6 +401,175 @@ fun LumiLogoIcon(modifier: Modifier = Modifier) {
 }
 
 /**
+ * Lumi asleep. The loading screen's easter egg.
+ *
+ * A separate composable rather than a flag on [LumiBlob], because almost nothing carries over: the body
+ * is monochrome instead of cyan, the eyes are closed dashes instead of open circles, there is no
+ * interaction, no anger, no glance, and it gains drifting Z's that nothing else has. Threading six
+ * mutually-exclusive branches through the interactive mascot would have made both harder to read.
+ *
+ * **Monochrome on purpose.** The accent means "you can act on this", and there is nothing to act on
+ * while the model loads. Draining the colour also makes the sleep read as sleep rather than as a
+ * differently-coloured awake mascot.
+ *
+ * Breathing here is slower than [LumiMotion.BREATH_MS] — sleeping breath, not waiting breath. Gated on
+ * [LocalMotionEnabled] like every other loop, and with motion off it holds a still sleeping pose, Z's
+ * included, because the pose is the joke and the movement is only garnish.
+ */
+@Composable
+fun LumiSleepingBlob(modifier: Modifier = Modifier) {
+    val animate = LocalMotionEnabled.current
+    val transition = rememberInfiniteTransition(label = "sleep")
+
+    val breath = if (animate) transition.animateFloat(
+        initialValue = 0.97f,
+        targetValue = 1.03f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(SLEEP_BREATH_MS, easing = EaseInOutSine),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "sleep_breath"
+    ).value else 1f
+
+    // The awake mascot's *relaxed* silhouette, which is what asleep should look like: still round on
+    // top, settled and slightly spread at the base. An earlier version used 50/50/42/42, which is a
+    // wide rounded rectangle rather than a slime — the odd boxy outline came from those square-ish
+    // bottom corners, not from the gradient.
+    val settle = if (animate) transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(SLEEP_BREATH_MS, easing = EaseInOutSine),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "sleep_settle"
+    ).value else 0.5f
+
+    val bodyGrey = MaterialTheme.colorScheme.onSurface
+    Box(modifier = modifier, contentAlignment = Alignment.Center) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .scale(breath)
+                // The apex softens and the feet spread a little as it breathes, so the settle reads as
+                // weight shifting rather than as uniform scaling.
+                .clip(
+                    // The awake mascot's own relaxed silhouette — same RoundedCornerShape, same
+                    // percentages — with the bottom pair pulled in a little so the base sits wider.
+                    // Four earlier attempts drew a custom dome path for this; it was never needed.
+                    androidx.compose.foundation.shape.RoundedCornerShape(
+                        topStartPercent = RELAXED_TOP_START - (settle * 2).toInt(),
+                        topEndPercent = RELAXED_TOP_END,
+                        bottomEndPercent = SLEEPING_BOTTOM_END + (settle * 2).toInt(),
+                        bottomStartPercent = SLEEPING_BOTTOM_START + (settle * 2).toInt(),
+                    )
+                )
+                .background(
+                    // Bright centre to mid edge. An earlier version ran 0.34 down to 0.10 alpha, which
+                    // renders as #5F5E5B fading into #2B2B2A against the #151515 background —
+                    // technically a mascot, visually almost nothing. Monochrome means drained of hue,
+                    // not drained of contrast.
+                    Brush.radialGradient(
+                        colors = listOf(
+                            bodyGrey.copy(alpha = 0.86f),
+                            bodyGrey.copy(alpha = 0.70f),
+                            bodyGrey.copy(alpha = 0.52f),
+                        ),
+                    )
+                )
+        )
+
+        // Closed eyes: two short bars, dark against the pale body — the inverse of the awake mascot's
+        // light-on-cyan eyes. This is what reads as asleep rather than as blinking. Sat low, because on
+        // a dome the widest part of the face is below centre.
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(11.dp),
+            modifier = Modifier.offset(y = 6.dp),
+        ) {
+            ClosedEye()
+            ClosedEye()
+        }
+
+        // Z's drift up and to the right, each offset in time so they trail rather than pulse together.
+        SleepingZ(animate = animate, delayMs = 0, sizeSp = 15, startX = 20.dp, startY = (-10).dp)
+        SleepingZ(animate = animate, delayMs = 800, sizeSp = 12, startX = 30.dp, startY = (-20).dp)
+        SleepingZ(animate = animate, delayMs = 1600, sizeSp = 9, startX = 38.dp, startY = (-27).dp)
+    }
+}
+
+@Composable
+private fun ClosedEye() {
+    Box(
+        modifier = Modifier
+            .size(width = 8.dp, height = 2.dp)
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.background.copy(alpha = 0.75f))
+    )
+}
+
+/**
+ * One Z, rising and fading.
+ *
+ * [delayMs] staggers the three so they form a trail. With motion off each simply sits at its start
+ * position at partial opacity, which still reads as sleep.
+ */
+@Composable
+private fun SleepingZ(
+    animate: Boolean,
+    delayMs: Int,
+    sizeSp: Int,
+    startX: androidx.compose.ui.unit.Dp,
+    startY: androidx.compose.ui.unit.Dp,
+) {
+    val transition = rememberInfiniteTransition(label = "z$delayMs")
+    val progress = if (animate) transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(Z_CYCLE_MS, delayMillis = delayMs, easing = EaseInOutSine),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "z_rise",
+    ).value else 0.35f
+
+    Text(
+        text = "z",
+        style = MaterialTheme.typography.titleMedium.copy(fontSize = sizeSp.sp),
+        color = MaterialTheme.colorScheme.onSurface.copy(
+            // Fade in over the first third, out over the last third, so a Z never pops or vanishes.
+            alpha = 0.85f * when {
+                progress < 0.3f -> progress / 0.3f
+                progress > 0.7f -> (1f - progress) / 0.3f
+                else -> 1f
+            }
+        ),
+        modifier = Modifier.offset(x = startX, y = startY - (progress * Z_RISE_DP).dp),
+    )
+}
+
+/** The double-tap bounce: how big, and how fast the growth is. The settle is a spring. */
+private const val BOUNCE_PEAK = 1.18f
+private const val BOUNCE_UP_MS = 110
+
+/** Slower than a waking breath. Sleep should look unhurried. */
+private const val SLEEP_BREATH_MS = 3400
+
+/** One Z's full rise-and-fade. Long enough that three of them overlap into a trail. */
+private const val Z_CYCLE_MS = 2400
+private const val Z_RISE_DP = 18f
+
+/**
+ * The awake mascot's relaxed corners, reused verbatim for the top of the sleeping pose.
+ *
+ * The bottom pair is rounded less than the awake mascot's 35/40, which is what widens the base — a
+ * smaller corner radius leaves more straight edge, so the slime sits flatter and spreads.
+ */
+private const val RELAXED_TOP_START = 40
+private const val RELAXED_TOP_END = 50
+private const val SLEEPING_BOTTOM_END = 29
+private const val SLEEPING_BOTTOM_START = 33
+
+/**
  * §6 shake. A fixed pattern, stepped at [SHAKE_STEP_MS] — see the note at its use site for why this
  * is not a random value read during composition.
  *
@@ -371,7 +580,6 @@ fun LumiLogoIcon(modifier: Modifier = Modifier) {
  */
 private val SHAKE_PATTERN = listOf(-1f, 1f, -0.75f, 0.75f, -0.5f, 0.5f, -0.25f, 0f)
 private const val SHAKE_STEP_MS = 70L
-
 
 /**
  * How long the body takes to change mood colour. Longer than `LumiMotion.CALM_MS` on purpose — a

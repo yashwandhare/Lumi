@@ -71,7 +71,7 @@ fun HomeScreen(
             Spacer(Modifier.weight(1f))
 
             LumiBlob(
-                modifier = Modifier.size(70.dp),
+                modifier = Modifier.size(69.dp),
                 isTyping = isTyping,
                 reactionTrigger = reactionCount
             )

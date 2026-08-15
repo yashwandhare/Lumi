@@ -418,6 +418,12 @@ private fun DrawerRow(
                 if (selected) MaterialTheme.colorScheme.surfaceVariant
                 else Color.Transparent
             )
+            // The selected row is a glass panel like every other raised surface in the app — §4's
+            // recipe is alpha plus a hairline, and it was carrying the fill without the border.
+            .then(
+                if (selected) Modifier.hairlineBorder(RoundedCornerShape(10.dp))
+                else Modifier
+            )
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
