@@ -20,6 +20,28 @@ val DarkError = Color(0xFFCF6679)
 val SlimeBlue = Color(0xFF4DB6AC)
 val SlimeBlueLight = Color(0xFF80CBC4)
 
+/**
+ * The mascot's body, per `DESIGN_LANGUAGE.md` §6.
+ *
+ * §6 specifies a *reversed* radial gradient: a deep teal core fading outwards through the primary
+ * cyan to a glowing light-mint edge. Reversed because the usual glossy sphere is lit from outside
+ * in; lighting it from the edge inwards is what makes it read as a translucent water bubble rather
+ * than a plastic ball.
+ *
+ * These are mascot anatomy, not palette entries, and they are the one place in the app outside the
+ * accent rule — §2 permits it because the mascot is where the accent lives.
+ */
+val MascotCore = Color(0xFF00838F)
+val MascotEdge = Color(0xFFE0F7FA)
+
+/** §6 anger state. The body turns deep red and shakes. */
+val MascotAngry = Color(0xFFCF6679)
+val MascotAngryCore = Color(0xFF7A1C1C)
+val MascotAngryEdge = Color(0xFFE57373)
+
+/** §6: two small white eyes, in both themes. Not `onSurface` — the eyes are always white. */
+val MascotEye = Color(0xFFFFFFFF)
+
 // Light palette — DESIGN_LANGUAGE.md §2. Surface and Surface Variant share one value there.
 val LightBackground = Color(0xFFFAFBF7)
 val LightSurface = Color(0xFFE4E7DF)

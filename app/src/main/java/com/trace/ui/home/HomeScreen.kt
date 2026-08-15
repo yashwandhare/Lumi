@@ -21,7 +21,7 @@ import com.trace.ui.components.TraceInput
 import java.util.Calendar
 import androidx.compose.animation.animateContentSize
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun HomeScreen(modifier: Modifier = Modifier) {
     var query by remember { mutableStateOf("") }
@@ -37,7 +37,10 @@ fun HomeScreen(modifier: Modifier = Modifier) {
             .animateContentSize(),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        val isTyping = query.isNotEmpty()
+        // DESIGN_LANGUAGE §6 ties the mascot's typing pose to the keyboard opening, not to the field
+        // holding text — the mascot should already be out of the way by the time the first character
+        // lands. Text presence is kept as a second trigger so a hardware keyboard behaves the same.
+        val isTyping = WindowInsets.isImeVisible || query.isNotEmpty()
 
         // Top spacer pushes everything down
         Spacer(Modifier.weight(1f))
