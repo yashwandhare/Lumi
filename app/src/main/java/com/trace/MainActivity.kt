@@ -4,6 +4,8 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import com.trace.ui.TraceApp
 import com.trace.ui.theme.TraceTheme
 import dagger.hilt.android.AndroidEntryPoint
@@ -22,9 +24,27 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        
+        val sharedPref = getSharedPreferences("trace_settings", android.content.Context.MODE_PRIVATE)
+        
         setContent {
-            TraceTheme {
-                TraceApp()
+            val systemTheme = androidx.compose.foundation.isSystemInDarkTheme()
+            var userThemeOverride by androidx.compose.runtime.remember { 
+                val saved = sharedPref.getInt("theme_mode", -1)
+                androidx.compose.runtime.mutableStateOf(if (saved == -1) null else saved == 1)
+            }
+            
+            val isDarkTheme = userThemeOverride ?: systemTheme
+
+            TraceTheme(darkTheme = isDarkTheme) {
+                TraceApp(
+                    isDarkTheme = isDarkTheme,
+                    onThemeToggle = { 
+                        val newValue = !isDarkTheme
+                        userThemeOverride = newValue
+                        sharedPref.edit().putInt("theme_mode", if (newValue) 1 else 0).apply()
+                    }
+                )
             }
         }
     }

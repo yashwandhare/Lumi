@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <path android:pathData="M 54 14 C 76.091 14 94 31.909 94 54 C 94 76.091 76.091 94 54 94 C 31.909 94 14 76.091 14 54 C 14 31.909 31.909 14 54 14 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:centerX="54"
+                android:centerY="54"
+                android:gradientRadius="40"
+                android:type="radial">
+                <item android:color="#FF00838F" android:offset="0.0" />
+                <item android:color="#FF4DB6AC" android:offset="0.6" />
+                <item android:color="#FFE0F7FA" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Eyes (Two circles) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M 44 58 C 46.209 58 48 56.209 48 54 C 48 51.791 46.209 50 44 50 C 41.791 50 40 51.791 40 54 C 40 56.209 41.791 58 44 58 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M 64 58 C 66.209 58 68 56.209 68 54 C 68 51.791 66.209 50 64 50 C 61.791 50 60 51.791 60 54 C 60 56.209 61.791 58 64 58 Z" />
+
+</vector>
