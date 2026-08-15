@@ -169,5 +169,65 @@ Do not fake it by screenshotting the background.
 full-bleed-panel reasoning does not obviously extend to a bottom sheet. They need an owner call, not an
 agent's.
 
+### [devb] 2026-08-15 — The GPU build of the model, not the generic one
+
+The model artefact is `gemma-4-E2B-it-gpu.litertlm` (2,008,432,640 bytes) rather than the generic
+`gemma-4-E2B-it.litertlm` (2,588,147,712 bytes). The GPU build is ~580MB smaller and matches the
+`Backend.GPU()` the harness requests.
+
+**Why record it:** the two files live in the same HF repo and look interchangeable, and choosing the
+generic one would add 580MB to every download for no gain. The GPU build is also what the LiteRT-LM
+samples pair with the GPU backend. Vendor-specific builds exist too; they are not used because the test
+device is a MediaTek mt6855, and there is no mt6855-specific build to prefer.
+
+**The build is pinned by name, size, and SHA-256 in `GemmaModel`**, so a silent upstream change (a
+re-push, a tag move) fails `ModelStore.isReady` loudly rather than loading a different file. `maxNumImages`
+and the vision/audio backends are set on the engine config but whether this build actually accepts image
+and audio input is a device test, not an assumption.
+
+### [devb] 2026-08-15 — The model lives in `filesDir`, verified by size and digest, not existence
+
+Three connected choices, recorded together because they are the no-redownload guarantee the owner asked
+for and each is only meaningful with the other two.
+
+1. **`filesDir`, not `cacheDir`, not external storage.** `cacheDir` is what Android deletes first under
+   storage pressure — using it would silently trigger a 1.9GB re-download. External storage is
+   world-readable and invites the user to delete the weights from a file manager. `filesDir` also
+   survives `installDebug` over the same signing key, so a dev rebuild never costs another download —
+   which is why the dev loop must never `adb uninstall` (it would wipe app-private files and re-trigger
+   the fetch). The signing keys were reconciled once so this holds going forward.
+2. **`isReady` is size **plus** a recorded SHA-256, not `exists()`.** v1 checked existence only — its
+   biggest correctness hole. A truncated file that survived a crash mid-rename passes `exists()` and then
+   fails inside the native loader, which reads to the user as "the app is broken" rather than "the
+   download needs retrying". The digest is verified exactly once, by `verifyAndCommit`, the moment the
+   bytes land; the receipt file records it so `isReady` never re-hashes 1.9GB on a cold start.
+3. **The partial download is left on disk on retry.** v1 wiped resume state on every retry, so a flaky
+   connection meant starting 1.9GB again each time. The v2 downloader resumes from the `.part` file with
+   a `Range` request; if the server ignores `Range` and replies 200, it deletes the partial and restarts
+   rather than concatenating.
+
+**Reverse only together and only for cause.** Dropping the digest check alone reintroduces v1's hole.
+Moving to `cacheDir` alone reintroduces silent re-downloads.
+
+### [devb] 2026-08-15 — The first model download is consent-gated; a present model is not
+
+`ModelSetupViewModel` shows a consent step and waits for `start()` when the model is absent, but calls
+`start()` immediately when the model is already on disk.
+
+**Why:** 1.9GB is minutes of waiting and real money on a metered plan — a fetch that large is never
+started without being asked. But a model already on disk needs permission for nothing; prompting a user
+to "download" something they already have would be the worse bug, and a returning user should see a load
+bar, not a download prompt.
+
+**The gate lives in `MainActivity`, above `TraceApp` and its NavHost.** Putting the setup screen in the
+nav graph would let the drawer and routes appear before the model exists, and would make "did the model
+load" a navigation question rather than a lifecycle one. Observing `ModelHarness.state` at the activity
+means the whole app appears at once, only when ready.
+
+**`Unavailable` is split into recoverable and not.** A dropped connection (recoverable) leaves the
+partial file and offers "resume"; a device that cannot run the model (not) is told so honestly, with the
+rest of the app still usable. Retryable vs permanent is decided in the downloader from the HTTP status
+and the preconditions (network present, enough room), not guessed in the UI.
+
 
 

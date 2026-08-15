@@ -20,6 +20,39 @@ the git log. Dev A folds these entries into `changelog.md` at merge points, pref
 
 ### Added
 
+- `[devb]` **The LiteRT-LM runtime is wired in.** `LiteRtModelHarness` is the single `@Singleton`
+  implementation of `ModelHarness` — the only thing that constructs an `Engine`, serialised through a
+  one-thread dispatcher and a `Mutex` so two generations can never enter the native runtime at once.
+  Loads the model once and keeps it resident for the process. `EngineConfig` requests the GPU backend
+  with a 4096-token ceiling and a compiled-kernel cache dir; speculative decoding is enabled before
+  `initialize()`. `generate()` streams via `sendMessageAsync`, detects cumulative-vs-delta streaming by
+  prefix, and closes one-shot conversations so background parsing never appears in the user's chat.
+- `[devb]` **`ModelStore` and `ModelDownloader` — the no-redownload guarantee.** The store lives in
+  `filesDir` (not `cacheDir`, which Android deletes first under storage pressure) and marks a model
+  usable only when size **and** a recorded SHA-256 match — v1 checked existence alone, which let a
+  truncated file through to the native loader and surfaced as "the app is broken". The digest is hashed
+  once, streamed in 1MB blocks, the moment the bytes land. The downloader resumes from a partial `.part`
+  file with a `Range` request, leaves it on retry, and classifies failures as retryable (no network, a
+  dropped connection) or permanent (404, 401/403, not enough room). No permission blitz, no WorkManager.
+- `[devb]` **A first-run download and onboarding screen.** Anchored on the mascot rather than a bare
+  progress bar, because several minutes of bar with nothing else is the least reassuring first sight of
+  the app. Every number is real — the size from the pinned artefact, the percentage from bytes on disk —
+  and nothing estimates a time, because a download over an unknown connection cannot be estimated
+  honestly. The download is consent-gated: a 1.9GB fetch over a metered plan is never started without
+  being asked. Recoverable failures say "nothing was lost, resume"; unrecoverable ones say the model
+  cannot run here but the rest of the app still works. Errors are not red, per §3.
+- `[devb]` **`ModelSetupScreen` gates the app on first run.** `MainActivity` observes `ModelHarness.state`
+  and shows the setup screen until `Ready`, then hands off to `TraceApp` for the rest of the process. A
+  returning user whose model is already on disk passes through in a moment — it loads, not downloads —
+  so the gate is not a stop sign for them.
+- `[devb]` **`TracePersona.SYSTEM`**, one short system instruction shared by the chat path and any
+  background one so the persona cannot drift between them. Kept brief on purpose: every token is prefill
+  on a 2B model, and the "answer in one or two sentences" instruction is what keeps a reply under a
+  couple of seconds instead of thirty.
+- `[devb]` **Manifest: `INTERNET` + `ACCESS_NETWORK_STATE`** (only the one-time model download uses
+  them; the app is offline by default thereafter) and four `uses-native-library` entries at
+  `required="false"` (`libvndksupport`, the three `libOpenCL` variants) that the GPU backend dlopens on
+  API 31+.
 - `[devb]` **`LoadingState` and `ErrorState`**, the missing two thirds of the state family beside
   `EmptyState`. `LoadingState` takes the operation as a required argument, so "Loading…" cannot be
   written by accident, and drops its indeterminate bar entirely when motion is off rather than
