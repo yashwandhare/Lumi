@@ -40,9 +40,12 @@ androidx-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-toolin
 androidx-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
 androidx-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
 androidx-material3 = { group = "androidx.compose.material3", name = "material3" }
-# The small curated icon set only. material-icons-extended adds ~40MB of generated
-# classes to the debug APK and is deliberately not used.
+# Both icon sets are BOM-managed, so neither carries an explicit version.
+# The extended set is needed: TraceApp and HomeScreen use eleven glyphs the core set
+# does not carry. It costs ~40MB in the debug APK; R8 strips the unused ones from
+# release, so the cost is debug-build only. See decisions.md.
 androidx-material-icons-core = { group = "androidx.compose.material", name = "material-icons-core" }
+androidx-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended" }
 androidx-navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version.ref = "navigation" }
 
 androidx-room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
