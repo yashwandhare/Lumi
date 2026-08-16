@@ -30,6 +30,7 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
@@ -61,6 +62,15 @@ fun LumiBlob(
     modifier: Modifier = Modifier,
     isTyping: Boolean = false,
     reactionTrigger: Int = 0,
+    /**
+     * The open eye, width by height.
+     *
+     * A parameter rather than a constant because the mascot is drawn at two very different sizes. The
+     * home screen's is 69dp and is the thing the user looks *at*, so it gets larger, oval eyes with some
+     * character. The docked one in the top bar is 32dp, where that same oval closes to a smudge — so the
+     * default reproduces the original near-circular pair and every other call site is unchanged.
+     */
+    eyeSize: DpSize = DpSize(width = 5.dp, height = 6.dp),
 ) {
     // Every idle animation below is gated on this. False means reduced motion, battery saver, or the
     // app is off screen — see LocalMotionEnabled. When it is false the mascot holds its resting pose
@@ -166,10 +176,13 @@ fun LumiBlob(
     val targetEyeOffsetY = if (isTyping) 4f else eyeOffsetY
 
     val targetEyeHeight = when {
-        isAngry -> 2.dp
-        isWinking -> 2.dp
-        isRelaxed -> 6.dp // Squint slightly when relaxed
-        else -> 8.dp
+        // A scowl and a blink both close the eye to a line, and a squint is most of the way open. All
+        // three are fractions of the open height rather than fixed dp values: with the eye scaled up on
+        // the home screen, a hardcoded 2dp blink would barely move the larger eye and would stop reading
+        // as a blink at all.
+        isAngry || isWinking -> eyeSize.height * CLOSED_EYE_FRACTION
+        isRelaxed -> eyeSize.height * SQUINT_FRACTION
+        else -> eyeSize.height
     }
 
     val eyeHeight by animateDpAsState(
@@ -358,13 +371,13 @@ fun LumiBlob(
         ) {
             Box(
                 modifier = Modifier
-                    .size(width = 5.dp, height = eyeHeight * 0.75f)
+                    .size(width = eyeSize.width, height = eyeHeight)
                     .clip(CircleShape)
                     .background(MascotEye)
             )
             Box(
                 modifier = Modifier
-                    .size(width = 5.dp, height = eyeHeight * 0.75f)
+                    .size(width = eyeSize.width, height = eyeHeight)
                     .clip(CircleShape)
                     .background(MascotEye)
             )
@@ -554,6 +567,14 @@ private fun SleepingZ(
 /** The double-tap bounce: how big, and how fast the growth is. The settle is a spring. */
 private const val BOUNCE_PEAK = 1.18f
 private const val BOUNCE_UP_MS = 110
+
+/**
+ * How far a blink and a squint close the eye, as a share of its open height.
+ *
+ * Fractions rather than dp so the poses scale with the eye — see the note at their use site.
+ */
+private const val CLOSED_EYE_FRACTION = 0.25f
+private const val SQUINT_FRACTION = 0.75f
 
 /** Slower than a waking breath. Sleep should look unhurried. */
 private const val SLEEP_BREATH_MS = 3400
