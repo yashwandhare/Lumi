@@ -263,6 +263,12 @@ Prefer a working plain version of a screen over a beautiful unfinished one.
 Appended by Dev A at the end of the Aug 16 session. **This is the most current statement of where things
 stand; where it disagrees with a section above, this wins.**
 
+> **If you are starting Phase 2, read `docs/devb_phase2_prompt.md` after this section.** It is the
+> Phase 2 working brief: you own Dev A's Phase 2 items as well as your own, it assumes you build only
+> once at the end of the phase, and it quotes every interface signature you need verbatim so you are not
+> guessing at an API you cannot compile-check. It also rules on the ASR question — **use
+> `SpeechRecognizer`, do not attempt the Sherpa spike** — and the reasoning is there.
+
 ### What landed today
 
 - **Every chat turn is audited.** Success, stopped, and failed alike. The entry carries the capability, the
