@@ -39,6 +39,15 @@ fun LumiInput(
     onStop: () -> Unit = {},
     showAttach: Boolean = true,
     onAttach: () -> Unit = {},
+    /**
+     * Whether the mic button acts. False keeps it visibly disabled rather than live-looking and
+     * inert — a control that responds to nothing teaches users not to trust the ones that do.
+     * The reasons it is not available are surfaced by the caller (permission denied, engine
+     * downloading), never guessed here.
+     */
+    canListen: Boolean = false,
+    /** Called on mic tap while [canListen]. The caller owns the permission request. */
+    onVoice: () -> Unit = {},
 ) {
     val shape = LumiShape.input
 
@@ -105,17 +114,25 @@ fun LumiInput(
 
                 Spacer(Modifier.weight(1f))
 
-                // Voice is Phase 6. Until then the button is present but visibly disabled rather than
-                // live-looking and inert — a control that responds to nothing teaches users not to
-                // trust the ones that do. It keeps its place in the layout so the composer does not
-                // rearrange itself when voice lands.
+                // The mic button. Disabled-looking until [canListen] is true, because a control
+                // that responds to nothing teaches users not to trust the ones that do. When it
+                // lights up, the tap belongs to the caller — which runs the permission request
+                // and starts the listening session.
                 LumiIconButton(
                     icon = Icons.Rounded.GraphicEq,
-                    contentDescription = "Voice input, not available yet",
-                    onClick = {},
-                    container = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
-                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
-                    enabled = false,
+                    contentDescription = if (canListen) "Start listening" else "Voice input, not available yet",
+                    onClick = onVoice,
+                    container = if (canListen) {
+                        MaterialTheme.colorScheme.onSurface
+                    } else {
+                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
+                    },
+                    tint = if (canListen) {
+                        MaterialTheme.colorScheme.onPrimary
+                    } else {
+                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f)
+                    },
+                    enabled = canListen,
                 )
 
                 Spacer(Modifier.width(MaterialTheme.spacing.md))

@@ -1,5 +1,9 @@
 package com.lumi.ui.home
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -14,17 +18,22 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.lumi.core.voice.AsrState
 import com.lumi.ui.chat.ChatTranscript
 import com.lumi.ui.chat.ChatViewModel
 import com.lumi.ui.components.LumiBlob
+import com.lumi.ui.components.LumiDialog
 import com.lumi.ui.components.LumiGlassPanel
 import com.lumi.ui.components.LumiInput
 import com.lumi.ui.components.BORDER_ALPHA
 import com.lumi.ui.theme.spacing
+import com.lumi.ui.voice.VoicePhase
+import com.lumi.ui.voice.VoiceSessionOverlay
 import java.util.Calendar
 import androidx.compose.animation.animateContentSize
 
@@ -42,13 +51,58 @@ fun HomeScreen(
     val canSend by viewModel.canSend.collectAsStateWithLifecycle()
     val generating by viewModel.generating.collectAsStateWithLifecycle()
     val thinkingVerb by viewModel.thinkingVerb.collectAsStateWithLifecycle()
+    val listening by viewModel.listening.collectAsStateWithLifecycle()
+    val voiceTurnActive by viewModel.voiceTurnActive.collectAsStateWithLifecycle()
+
+    val context = LocalContext.current
+    var micGranted by remember {
+        mutableStateOf(
+            context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) ==
+                PackageManager.PERMISSION_GRANTED
+        )
+    }
+    // The denial path: the permission request ran and was refused. The mic button then
+    // stays disabled and the app explains once, instead of re-asking on every tap — which is
+    // how a denial becomes a nag. The recovery offered is the one that exists: typed input.
+    var showMicDeniedDialog by remember { mutableStateOf(false) }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        micGranted = granted
+        if (granted) {
+            reactionCount++
+            viewModel.startVoiceSession()
+        } else {
+            showMicDeniedDialog = true
+        }
+    }
+
+    /**
+     * The mic button acts when the platform has granted recording permission and nothing is
+     * already in flight. Engine readiness is *not* required here: the first tap starts the
+     * ~41MB model download, which is why the overlay can show itself downloading. A button
+     * gated on the model being present would never get pressed on a fresh install.
+     */
+    val canListen = micGranted && !generating && listening == null
 
     val conversationStarted = turns.isNotEmpty()
 
+    // Which voice phase the overlay shows. The listening value wins while the mic is live;
+    // after the spoken send, thinking while the model works and speaking while TTS delivers.
+    val voicePhase = when {
+        listening != null -> VoicePhase.LISTENING
+        voiceTurnActive && generating -> VoicePhase.THINKING
+        voiceTurnActive -> VoicePhase.SPEAKING
+        else -> null
+    }
+
+    Box(
+        modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
+    ) {
     Column(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
             .padding(horizontal = 16.dp)
             .imePadding()
             .animateContentSize(),
@@ -120,13 +174,71 @@ fun HomeScreen(
                 showAttachmentSheet = true
                 reactionCount++
             },
+            canListen = canListen,
+            onVoice = { permissionLauncher.launch(Manifest.permission.RECORD_AUDIO) },
             modifier = Modifier.padding(bottom = 16.dp)
         )
+    }
+
+    // The voice session takes over the screen. Rendered above the transcript and composer so a
+    // typed send mid-session cancels it at the door (ChatViewModel.stopVoiceSession) and the
+    // overlay falls away on its own once the reply finishes speaking.
+    val phase = voicePhase
+    if (phase != null) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background),
+            contentAlignment = Alignment.Center,
+        ) {
+            VoiceSessionOverlay(
+                phase = phase,
+                thinkingVerb = thinkingVerb ?: "Working",
+                transcript = when (phase) {
+                    VoicePhase.LISTENING -> listening.orEmpty()
+                    else -> ""
+                },
+                onCancel = {
+                    when (phase) {
+                        VoicePhase.LISTENING -> viewModel.stopVoiceSession()
+                        VoicePhase.THINKING -> viewModel.stop()
+                        VoicePhase.SPEAKING -> viewModel.stopSpeaking()
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+            )
+        }
     }
 
     if (showAttachmentSheet) {
         AttachmentBottomSheet(onDismiss = { showAttachmentSheet = false })
     }
+
+    // The denial path made honest: one dialog explaining what happened and the fallback that
+    // still works — typed input. Not re-asked on every tap.
+    if (showMicDeniedDialog) {
+        LumiDialog(
+            title = "Microphone access denied",
+            text = {
+                Text("Lumi needs the microphone to listen. You can enable it in Settings, or type instead.")
+            },
+            confirmLabel = "Open Settings",
+            dismissLabel = "Keep typing",
+            onConfirm = {
+                showMicDeniedDialog = false
+                context.startActivity(
+                    android.content.Intent(
+                        android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                        android.net.Uri.parse("package:${context.packageName}")
+                    )
+                )
+            },
+            onDismissRequest = { showMicDeniedDialog = false },
+        )
+    }
+    } // Box
 }
 
 fun getGreeting(): String {
