@@ -2,6 +2,7 @@ package com.lumi.ui.chat
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.lumi.core.InteractionOrigin
 import com.lumi.core.ai.GenerationRequest
 import com.lumi.core.ai.ModelHarness
 import com.lumi.core.ai.ModelState
@@ -10,6 +11,10 @@ import com.lumi.core.audit.AuditLog
 import com.lumi.core.model.AuditOutcome
 import com.lumi.core.model.CapabilityId
 import com.lumi.core.model.MessageRole
+import com.lumi.core.voice.AsrEngine
+import com.lumi.core.voice.AsrSessionResult
+import com.lumi.core.voice.AsrState
+import com.lumi.core.voice.ReplySpeaker
 import com.lumi.data.chat.ChatRepository
 import com.lumi.data.local.ChatEntity
 import com.lumi.data.settings.SettingsStore
@@ -49,6 +54,8 @@ class ChatViewModel @Inject constructor(
     private val chats: ChatRepository,
     private val settings: SettingsStore,
     private val audit: AuditLog,
+    private val asr: AsrEngine,
+    private val speaker: ReplySpeaker,
     @param:ApplicationScope private val applicationScope: CoroutineScope,
 ) : ViewModel() {
 
@@ -89,13 +96,133 @@ class ChatViewModel @Inject constructor(
     private var sessionId: SessionId = newSessionId()
     private var generation: Job? = null
 
+    /** The job running the current mic session, if one is live. */
+    private var listeningJob: Job? = null
+
+    /**
+     * Speech is buffered to sentence-ish fragments rather than spoken per token. The queue rule
+     * still holds — chunks are appended with QUEUE_ADD and the speak job is never cancelled at the
+     * arrival of the next one — but a TTS flush on every five-token delta reads as stuttering
+     * instead of talking.
+     */
+    private var speechBuffer = StringBuilder()
+
     /** So the next reply does not draw the same verb twice in a row. */
     private var lastVerb: String? = null
 
-    fun send(text: String) {
+    /**
+     * The running transcript while the mic is live. Null means not listening; an empty string
+     * means listening with nothing recognised yet. The voice UI renders partial words from
+     * this so the user can correct course before Lumi acts.
+     */
+    private val _listening = MutableStateFlow<String?>(null)
+    val listening: StateFlow<String?> = _listening.asStateFlow()
+
+    /** Engine availability — downloading the model, ready, or unavailable — for the UI. */
+    val asrState: StateFlow<AsrState> = asr.state
+
+    /** True while a reply is being read aloud. */
+    val speaking: StateFlow<Boolean> = speaker.speaking
+
+    /** The origin of the turn in flight. TTS speaks only turns the user spoke. */
+    private var turnOrigin: InteractionOrigin = InteractionOrigin.TEXT
+
+    /**
+     * True while a voice turn is live — from the spoken send through the reply being spoken.
+     * The voice UI anchors on this: once the transcript is flowing and the mascot's voice is
+     * done, the overlay gives the room back. Cleared by a typed send or a new conversation.
+     */
+    private val _voiceTurnActive = MutableStateFlow(false)
+    val voiceTurnActive: StateFlow<Boolean> = _voiceTurnActive.asStateFlow()
+
+    init {
+        // The voice overlay ends itself when there is nothing left to do: not generating and
+        // not speaking. Doing this here, in one place, keeps the overlay's exit condition from
+        // being a guess scattered across the UI.
+        viewModelScope.launch {
+            combine(_generating, speaker.speaking) { generating, speaking ->
+                generating || speaking
+            }.collect { busy ->
+                if (!busy && _voiceTurnActive.value) {
+                    _voiceTurnActive.value = false
+                }
+            }
+        }
+    }
+
+    fun startVoiceSession() {
+        if (listeningJob?.isActive == true || generation?.isActive == true) return
+        speaker.stop()
+
+        listeningJob = viewModelScope.launch {
+            asr.prepare()
+            if (asr.state.value !is AsrState.Ready) {
+                // prepare() recorded why in its state; the UI renders it. The honest fallback
+                // is typed input, not a mic button that silently does nothing.
+                _listening.value = null
+                return@launch
+            }
+
+            _listening.value = ""
+            when (val result = asr.listen { partial -> _listening.value = partial }) {
+                is AsrSessionResult.Final -> {
+                    _listening.value = null
+                    val transcript = result.text.trim()
+                    if (transcript.isNotEmpty()) {
+                        // Sherpa is local by construction, so the entry can say so — the privacy
+                        // tension the decisions_devb entry flagged is gone by design.
+                        recordVoiceSession(
+                            AuditOutcome.SUCCESS,
+                            detail = "Recognised on-device, no network.",
+                        )
+                        send(transcript, origin = InteractionOrigin.VOICE)
+                    }
+                }
+                is AsrSessionResult.Cancelled -> {
+                    // A partial transcript belongs to nobody — discard it, not store it.
+                    _listening.value = null
+                }
+                is AsrSessionResult.Failed -> {
+                    _listening.value = null
+                    recordVoiceSession(AuditOutcome.FAILURE, detail = result.reason)
+                }
+            }
+        }
+    }
+
+    /**
+     * Ends a live listening session. **This is the cancel-on-send fix from v1**: if the mic is
+     * live and the user types and hits send, the recording loop stops cleanly instead of
+     * staying live in the background.
+     */
+    fun stopVoiceSession() {
+        if (listeningJob?.isActive != true) return
+        asr.cancel()
+        listeningJob?.cancel()
+        listeningJob = null
+        _listening.value = null
+    }
+
+    /** Silences a reply already being read. Separate from [stop] because generation is done by then. */
+    fun stopSpeaking() {
+        speaker.stop()
+        speechBuffer.setLength(0)
+    }
+
+    fun send(text: String, origin: InteractionOrigin = InteractionOrigin.TEXT) {
         val prompt = text.trim()
         if (prompt.isEmpty() || generation?.isActive == true) return
 
+        // v1's mic bug, fixed at the door: a typed send while the mic is live cancels the
+        // recording loop cleanly rather than leaving it running in the background.
+        stopVoiceSession()
+        // A spoken reply already being read out must not keep talking over the new turn.
+        speaker.stop()
+
+        turnOrigin = origin
+        // The voice overlay anchors on this: a spoken turn shows listening → thinking → speaking,
+        // a typed turn keeps the transcript as the whole screen.
+        _voiceTurnActive.value = origin == InteractionOrigin.VOICE
         _turns.value += ChatTurn(TurnRole.USER, prompt)
         _turns.value += ChatTurn(TurnRole.MODEL, "", streaming = true)
         _generating.value = true
@@ -114,7 +241,10 @@ class ChatViewModel @Inject constructor(
             try {
                 harness.generate(
                     GenerationRequest(prompt = prompt, sessionId = sessionId),
-                ).collect { delta -> appendToReply(delta) }
+                ).collect { delta ->
+                    appendToReply(delta)
+                    feedSpeech(delta)
+                }
 
                 val reply = currentReplyText()
                 finishReply()
@@ -131,6 +261,8 @@ class ChatViewModel @Inject constructor(
                 // The partial text is kept, so it has to be stored too. Leaving it on screen but out of
                 // the database means the answer is there until the user reopens the conversation and
                 // then silently is not — the same class of bug as history not working at all.
+                speaker.stop()
+                speechBuffer.setLength(0)
                 persistOutsideThisJob(conversationId, currentReplyText())
                 recordTurn(AuditOutcome.PARTIAL, "Reply stopped before it finished")
                 throw cancellation
@@ -141,9 +273,12 @@ class ChatViewModel @Inject constructor(
                 // Deliberately *not* persisted, unlike the stopped case. A truncated answer stored
                 // without the failure notice beside it reads as a complete one on reopen, and a reply
                 // that misrepresents itself is worse than a reply that is missing.
+                speaker.stop()
+                speechBuffer.setLength(0)
                 replaceReplyWithFailure()
                 recordTurn(AuditOutcome.FAILURE, "A reply could not be generated", t)
             } finally {
+                flushSpeech()
                 _generating.value = false
                 _thinkingVerb.value = null
             }
@@ -156,6 +291,8 @@ class ChatViewModel @Inject constructor(
         generation = null
         _generating.value = false
         _thinkingVerb.value = null
+        speaker.stop()
+        speechBuffer.setLength(0)
         finishReply()
     }
 
@@ -210,6 +347,60 @@ class ChatViewModel @Inject constructor(
 
     private fun appendToReply(delta: String) = updateLastModelTurn { current ->
         current.copy(text = current.text + delta, streaming = true)
+    }
+
+    /**
+     * Hands a streamed delta to TTS when the turn was spoken.
+     *
+     * **Two v1 rules hold here.** Speak only turns whose origin is VOICE — a typed turn keeps
+     * the phone silent. And the queue appends: [speakChunk] uses QUEUE_ADD and never cancels
+     * the speak job at the arrival of the next chunk, which is the fix for the engine
+     * interrupting its own sentence and skipping words.
+     *
+     * Deltas are buffered until a sentence boundary so TTS gets speakable fragments rather
+     * than one token at a time.
+     */
+    private fun feedSpeech(delta: String) {
+        if (turnOrigin != InteractionOrigin.VOICE) return
+        speechBuffer.append(delta)
+        val text = speechBuffer.toString()
+        val cut = text.lastIndexOfAny(SENTENCE_BREAKS)
+        if (cut < MIN_SPEECH_CHUNK) return
+        speakChunk(text.substring(0, cut + 1))
+        speechBuffer = StringBuilder(text.substring(cut + 1))
+    }
+
+    /** Queues whatever is left once the reply finishes. Only for spoken turns. */
+    private fun flushSpeech() {
+        if (turnOrigin != InteractionOrigin.VOICE) return
+        val remainder = speechBuffer.toString()
+        speechBuffer.setLength(0)
+        if (remainder.isNotBlank()) speakChunk(remainder)
+    }
+
+    private fun speakChunk(text: String) {
+        // Markdown syntax is noise when spoken. Strip the common markers rather than reading
+        // asterisks and backticks aloud — the transcript still renders them.
+        val spoken = text
+            .replace(Regex("`{1,3}"), "")
+            .replace(Regex("\\*{1,2}"), "")
+            .trim()
+        if (spoken.isNotEmpty()) speaker.speak(spoken)
+    }
+
+    /**
+     * Audit a voice session the same way a chat turn is audited: the fact and the outcome,
+     * never what was said.
+     */
+    private fun recordVoiceSession(outcome: AuditOutcome, detail: String? = null) {
+        applicationScope.launch {
+            audit.record(
+                capability = CapabilityId.CHAT,
+                summary = "Listened for a spoken request",
+                outcome = outcome,
+                detail = detail,
+            )
+        }
     }
 
     private fun finishReply() = updateLastModelTurn { current ->
@@ -286,5 +477,15 @@ class ChatViewModel @Inject constructor(
     private companion object {
         const val EMPTY_REPLY = "Lumi had nothing to add to that."
         const val GENERATION_FAILED = "Lumi could not finish that reply. Try asking again."
+
+        /** Where TTS may break a streaming reply into speakable chunks. */
+        val SENTENCE_BREAKS = charArrayOf('.', '!', '?', ';', '\n')
+
+        /**
+         * Below this many characters a buffered fragment is not worth speaking — a lone "I"
+         * after a period is a false sentence boundary that would interrupt naturally as part
+         * of the next fragment.
+         */
+        const val MIN_SPEECH_CHUNK = 12
     }
 }
