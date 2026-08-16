@@ -31,7 +31,7 @@ import javax.inject.Singleton
  */
 @Singleton
 class AndroidReplySpeaker @Inject constructor(
-    @param:ApplicationContext context: Context,
+    @ApplicationContext context: Context,
 ) : ReplySpeaker, TextToSpeech.OnInitListener {
 
     private val engine = TextToSpeech(context, this)
@@ -51,9 +51,13 @@ class AndroidReplySpeaker @Inject constructor(
     override fun onInit(status: Int) {
         initialized = true
         if (status == TextToSpeech.SUCCESS) {
-            engine.language = Locale.US
+            // `setLanguage`'s return code, not a read-back of `language`. The getter is deprecated,
+            // and worse it hands back the locale that was just set even when that locale's voice data
+            // is not installed — so the engine reported itself available on a device that cannot
+            // actually speak, and the failure surfaced as silence. LANG_MISSING_DATA and
+            // LANG_NOT_SUPPORTED are negative; LANG_AVAILABLE and above can speak.
+            available = engine.setLanguage(Locale.US) >= TextToSpeech.LANG_AVAILABLE
             engine.setOnUtteranceProgressListener(utteranceProgress)
-            available = engine.language != null
         }
     }
 

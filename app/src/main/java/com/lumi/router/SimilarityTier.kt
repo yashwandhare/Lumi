@@ -67,11 +67,14 @@ internal class SimilarityTier(
 
         if (best.value < ROUTE_THRESHOLD) return null
 
-        val tied = runnerUp != null &&
-            runnerUp.value >= ROUTE_THRESHOLD &&
-            best.value - runnerUp.value < AMBIGUITY_GAP
-        return if (tied && runnerUp != null) {
-            TierTwoAnswer(null, listOf(best.key, runnerUp.key))
+        // The runner-up only matters if it is itself actionable and close enough to be a real tie.
+        // Narrowing it to a single nullable up front is what lets the branch below read it without a
+        // second null check the compiler already knows is redundant.
+        val tiedRunnerUp = runnerUp?.takeIf {
+            it.value >= ROUTE_THRESHOLD && best.value - it.value < AMBIGUITY_GAP
+        }
+        return if (tiedRunnerUp != null) {
+            TierTwoAnswer(null, listOf(best.key, tiedRunnerUp.key))
         } else {
             TierTwoAnswer(decisionFor(best.key, rawText, best.value), null)
         }
