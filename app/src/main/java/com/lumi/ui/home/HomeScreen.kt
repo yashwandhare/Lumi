@@ -53,6 +53,7 @@ fun HomeScreen(
     val thinkingVerb by viewModel.thinkingVerb.collectAsStateWithLifecycle()
     val listening by viewModel.listening.collectAsStateWithLifecycle()
     val voiceTurnActive by viewModel.voiceTurnActive.collectAsStateWithLifecycle()
+    val pendingIntent by viewModel.pendingIntent.collectAsStateWithLifecycle()
 
     val context = LocalContext.current
     var micGranted by remember {
@@ -214,6 +215,27 @@ fun HomeScreen(
 
     if (showAttachmentSheet) {
         AttachmentBottomSheet(onDismiss = { showAttachmentSheet = false })
+    }
+
+    // Interpreted-intent confirmation. Where an action has consequence, Lumi shows what it
+    // understood — the action in plain words and the sentence that produced it — and waits
+    // for an explicit yes. No guess becomes a changed setting.
+    val intent = pendingIntent
+    if (intent != null) {
+        LumiDialog(
+            title = intent.description,
+            text = {
+                Text(
+                    text = "You said \"${intent.intent.rawText}\"",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            },
+            confirmLabel = "Do it",
+            dismissLabel = "Cancel",
+            onConfirm = { viewModel.confirmPendingIntent() },
+            onDismissRequest = { viewModel.cancelPendingIntent() },
+        )
     }
 
     // The denial path made honest: one dialog explaining what happened and the fallback that

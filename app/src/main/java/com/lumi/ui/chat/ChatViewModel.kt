@@ -2,7 +2,11 @@ package com.lumi.ui.chat
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.lumi.core.CapabilityInput
+import com.lumi.core.Dispatcher
 import com.lumi.core.InteractionOrigin
+import com.lumi.core.Router
+import com.lumi.core.RouterOutcome
 import com.lumi.core.ai.GenerationRequest
 import com.lumi.core.ai.ModelHarness
 import com.lumi.core.ai.ModelState
@@ -56,6 +60,8 @@ class ChatViewModel @Inject constructor(
     private val audit: AuditLog,
     private val asr: AsrEngine,
     private val speaker: ReplySpeaker,
+    private val router: Router,
+    private val dispatcher: Dispatcher,
     @param:ApplicationScope private val applicationScope: CoroutineScope,
 ) : ViewModel() {
 
@@ -126,6 +132,13 @@ class ChatViewModel @Inject constructor(
 
     /** The origin of the turn in flight. TTS speaks only turns the user spoke. */
     private var turnOrigin: InteractionOrigin = InteractionOrigin.TEXT
+
+    /**
+     * A non-chat intent that has been understood but not acted on. While non-null the UI shows
+     * the confirmation surface; the dispatcher does nothing until the user answers it.
+     */
+    private val _pendingIntent = MutableStateFlow<PendingIntent?>(null)
+    val pendingIntent: StateFlow<PendingIntent?> = _pendingIntent.asStateFlow()
 
     /**
      * True while a voice turn is live — from the spoken send through the reply being spoken.
@@ -209,6 +222,102 @@ class ChatViewModel @Inject constructor(
         speechBuffer.setLength(0)
     }
 
+    /**
+     * Runs the confirmed intent through the dispatcher and reports the outcome in the
+     * transcript.
+     *
+     * The capability writes its own audit entry — the dispatcher cannot, because only the
+     * capability knows what actually happened (Capability contract) — so nothing is recorded
+     * here unless dispatch itself fails to reach one.
+     */
+    fun confirmPendingIntent() {
+        val pending = _pendingIntent.value ?: return
+        _pendingIntent.value = null
+
+        val origin = turnOrigin
+        _turns.value += ChatTurn(TurnRole.MODEL, "", streaming = true)
+        generation = viewModelScope.launch {
+            try {
+                val result = dispatcher.dispatch(
+                    CapabilityInput(intent = pending.intent, origin = origin)
+                )
+                updateLastModelTurn { it.copy(text = result.userMessage, streaming = false) }
+            } catch (t: Throwable) {
+                updateLastModelTurn { current ->
+                    current.copy(
+                        text = "Lumi could not do that right now. Try again.",
+                        streaming = false,
+                    )
+                }
+                recordIntent(
+                    pending.intent.capability,
+                    AuditOutcome.FAILURE,
+                    "Could not run: ${t::class.simpleName ?: "error"}.",
+                )
+            }
+        }
+    }
+
+    /**
+     * The user saw what Lumi understood and said no. Nothing ran, so nothing needs an audit
+     * entry — the exchange still gets a closing line so the transcript does not end on a
+     * dangling request.
+     */
+    fun cancelPendingIntent() {
+        if (_pendingIntent.value == null) return
+        _pendingIntent.value = null
+        _turns.value += ChatTurn(TurnRole.MODEL, "Okay, I will not do that.")
+    }
+
+    /** The router could not settle it. Show the question, ask in plain words. */
+    private suspend fun showClarification(question: String, conversationId: Long?) {
+        finishReply()
+        updateLastModelTurn { it.copy(text = question, streaming = false) }
+        if (conversationId != null) {
+            chats.appendModelMessage(conversationId, question, System.currentTimeMillis())
+        }
+        recordTurn(AuditOutcome.SUCCESS, "Asked a clarifying question")
+    }
+
+    /**
+     * Runs ordinary chat generation: the prompt goes to the resident model and the reply
+     * streams, with TTS applied for spoken turns only.
+     */
+    private suspend fun runChatGeneration(prompt: String, conversationId: Long?) {
+        harness.generate(
+            GenerationRequest(prompt = prompt, sessionId = sessionId),
+        ).collect { delta ->
+            appendToReply(delta)
+            feedSpeech(delta)
+        }
+
+        val reply = currentReplyText()
+        finishReply()
+        if (conversationId != null && reply.isNotBlank()) {
+            chats.appendModelMessage(conversationId, reply, System.currentTimeMillis())
+        }
+        recordTurn(AuditOutcome.SUCCESS, "Answered a message")
+    }
+
+    /**
+     * The chat turn's placeholder goes away when a pending intent replaces it: the transcript
+     * shows the user's request, and the confirmation dialog owns the reply until the user
+     * answers.
+     */
+    private fun removeLastModelTurn() {
+        _turns.value = _turns.value.dropLast(1)
+    }
+
+    /**
+     * Writes the fact of a dispatched action to the audit log. Capabilities write their own
+     * details; this covers reaching one.
+     */
+    private fun recordIntent(capability: CapabilityId, outcome: AuditOutcome, detail: String) {
+        applicationScope.launch {
+            audit.record(capability = capability, summary = "Acted on a routed request", outcome = outcome, detail = detail)
+        }
+    }
+
     fun send(text: String, origin: InteractionOrigin = InteractionOrigin.TEXT) {
         val prompt = text.trim()
         if (prompt.isEmpty() || generation?.isActive == true) return
@@ -239,19 +348,28 @@ class ChatViewModel @Inject constructor(
                 ?.also { chatId = it }
 
             try {
-                harness.generate(
-                    GenerationRequest(prompt = prompt, sessionId = sessionId),
-                ).collect { delta ->
-                    appendToReply(delta)
-                    feedSpeech(delta)
-                }
+                when (val outcome = router.route(prompt, origin)) {
+                    is RouterOutcome.Ambiguous ->
+                        // Ask the short question instead of guessing a risky action: guessing
+                        // is the worse behaviour for a product that can flip settings and
+                        // fetch mail.
+                        showClarification(outcome.question, conversationId)
 
-                val reply = currentReplyText()
-                finishReply()
-                if (conversationId != null && reply.isNotBlank()) {
-                    chats.appendModelMessage(conversationId, reply, System.currentTimeMillis())
+                    is RouterOutcome.Routed -> {
+                        if (outcome.decision.intent.capability == CapabilityId.CHAT) {
+                            runChatGeneration(prompt, conversationId)
+                        } else {
+                            // Consequence-bearing route: show what was understood, act only on a yes.
+                            // No audit entry yet — showing a dialog is not an action against the
+                            // world; the capability writes its own when it actually runs.
+                            _pendingIntent.value = PendingIntent(
+                                intent = outcome.decision.intent,
+                                description = describeIntent(outcome.decision.intent),
+                            )
+                            removeLastModelTurn()
+                        }
+                    }
                 }
-                recordTurn(AuditOutcome.SUCCESS, "Answered a message")
             } catch (cancellation: CancellationException) {
                 // Stopping is something the user did, not a failure. This has to be caught before
                 // Throwable and rethrown: catching it as a failure appended "could not finish that
