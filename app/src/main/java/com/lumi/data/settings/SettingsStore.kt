@@ -92,6 +92,14 @@ class SettingsStore @Inject constructor(
 
     fun setLiveMascot(enabled: Boolean) = update { copy(liveMascot = enabled) }
 
+    /**
+     * Consent for Lumi to answer from the user's own files and mail.
+     *
+     * A [ModelSettings] flag rather than a [NetworkFeature]: retrieval runs on-device, so it never
+     * reaches the network and must not appear in the audited set of features that do.
+     */
+    fun setPersonalContext(enabled: Boolean) = update { copy(personalContext = enabled) }
+
     fun resetModelDefaults() {
         val backend = _model.value.backend
         // The backend is a device capability rather than a tuning choice, so a "reset parameters"
@@ -127,6 +135,7 @@ class SettingsStore @Inject constructor(
             .putString(KEY_SYSTEM_PROMPT, settings.systemPrompt)
             .putBoolean(KEY_SHOW_METRICS, settings.showMetrics)
             .putBoolean(KEY_LIVE_MASCOT, settings.liveMascot)
+            .putBoolean(KEY_PERSONAL_CONTEXT, settings.personalContext)
             .apply()
         _model.value = settings
     }
@@ -144,6 +153,7 @@ class SettingsStore @Inject constructor(
             systemPrompt = prefs.getString(KEY_SYSTEM_PROMPT, null) ?: defaults.systemPrompt,
             showMetrics = prefs.getBoolean(KEY_SHOW_METRICS, defaults.showMetrics),
             liveMascot = prefs.getBoolean(KEY_LIVE_MASCOT, defaults.liveMascot),
+            personalContext = prefs.getBoolean(KEY_PERSONAL_CONTEXT, defaults.personalContext),
         )
     }
 
@@ -169,6 +179,7 @@ class SettingsStore @Inject constructor(
         const val KEY_SYSTEM_PROMPT = "model_system_prompt"
         const val KEY_SHOW_METRICS = "show_metrics"
         const val KEY_LIVE_MASCOT = "live_mascot"
+        const val KEY_PERSONAL_CONTEXT = "personal_context"
         const val KEY_WEB_SEARCH = "network_web_search"
         const val KEY_GMAIL = "network_gmail"
 

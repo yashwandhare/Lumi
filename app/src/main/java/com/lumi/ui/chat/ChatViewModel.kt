@@ -28,12 +28,14 @@ import com.lumi.di.ApplicationScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -154,11 +156,23 @@ class ChatViewModel @Inject constructor(
         // The voice overlay ends itself when there is nothing left to do: not generating and
         // not speaking. Doing this here, in one place, keeps the overlay's exit condition from
         // being a guess scattered across the UI.
+        //
+        // **The settle delay is what makes it correct.** Generation finishing and speech starting
+        // are not simultaneous: `flushSpeech` queues the last sentence, then the TTS engine reports
+        // `speaking` only once it has actually begun. For that gap both flags read false, and the
+        // previous version took that single idle sample as the end of the turn — so the overlay
+        // closed the instant the model stopped writing and dropped the user into the chat screen
+        // while the reply was still to be read aloud.
+        //
+        // `collectLatest` gives the delay for free: if either flag goes busy again while the timer
+        // is running, this block is cancelled before it can end the turn. That is `debounce`'s
+        // behaviour without depending on a preview API.
         viewModelScope.launch {
             combine(_generating, speaker.speaking) { generating, speaking ->
                 generating || speaking
-            }.collect { busy ->
+            }.collectLatest { busy ->
                 if (!busy && _voiceTurnActive.value) {
+                    delay(VOICE_TURN_SETTLE_MS)
                     _voiceTurnActive.value = false
                 }
             }
@@ -501,10 +515,27 @@ class ChatViewModel @Inject constructor(
         if (turnOrigin != InteractionOrigin.VOICE) return
         speechBuffer.append(delta)
         val text = speechBuffer.toString()
+
         val cut = text.lastIndexOfAny(SENTENCE_BREAKS)
-        if (cut < MIN_SPEECH_CHUNK) return
-        speakChunk(text.substring(0, cut + 1))
-        speechBuffer = StringBuilder(text.substring(cut + 1))
+        if (cut >= MIN_SPEECH_CHUNK) {
+            speakChunk(text.substring(0, cut + 1))
+            speechBuffer = StringBuilder(text.substring(cut + 1))
+            return
+        }
+
+        // **A fallback break on length, not only on punctuation.** A model that answers in one long
+        // unpunctuated run — a list, a code line, a sentence still in progress — produced no
+        // sentence mark at all, so nothing was spoken until the reply finished and then the whole
+        // thing arrived at once. Past this length, break at the last word boundary instead so
+        // speech keeps pace with the text. Breaking on a space and never mid-word: a chunk cut
+        // through a word is pronounced as two non-words.
+        if (text.length >= MAX_SPEECH_CHUNK) {
+            val space = text.lastIndexOf(' ')
+            if (space >= MIN_SPEECH_CHUNK) {
+                speakChunk(text.substring(0, space))
+                speechBuffer = StringBuilder(text.substring(space + 1))
+            }
+        }
     }
 
     /** Queues whatever is left once the reply finishes. Only for spoken turns. */
@@ -617,12 +648,26 @@ class ChatViewModel @Inject constructor(
 
         /** Where TTS may break a streaming reply into speakable chunks. */
         val SENTENCE_BREAKS = charArrayOf('.', '!', '?', ';', '\n')
-
         /**
          * Below this many characters a buffered fragment is not worth speaking — a lone "I"
          * after a period is a false sentence boundary that would interrupt naturally as part
          * of the next fragment.
          */
         const val MIN_SPEECH_CHUNK = 12
+
+        /**
+         * The length at which a reply is broken at a word boundary even with no punctuation in
+         * sight, so speech keeps pace with a long unpunctuated run instead of arriving all at once
+         * when the reply ends. Roughly a spoken breath's worth of text.
+         */
+        const val MAX_SPEECH_CHUNK = 160
+
+        /**
+         * How long generating and speaking must *both* stay false before a voice turn is over.
+         * Covers the gap between the last token and the TTS engine reporting that it has started —
+         * see the note in `init`. Long enough for engine start-up, short enough that the overlay
+         * does not linger once the reply really has finished.
+         */
+        const val VOICE_TURN_SETTLE_MS = 700L
     }
 }

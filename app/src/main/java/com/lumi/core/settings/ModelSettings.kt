@@ -47,6 +47,15 @@ data class ModelSettings(
      * corner of a screen they are reading distracting, and that is a preference, not a bug.
      */
     val liveMascot: Boolean = true,
+    /**
+     * Whether Lumi may draw on the user's own documents and fetched mail when answering.
+     *
+     * On by default, and deliberately not a [NetworkSettings] feature: retrieval over the user's own
+     * content happens entirely on-device, so it reaches nothing and needs no network opt-in. It is
+     * consent for Lumi to *read what is already here*, which is what makes asking for a document by
+     * description work at all — off, such a question can only be answered from the model's weights.
+     */
+    val personalContext: Boolean = true,
 ) {
     companion object {
         const val DEFAULT_TOP_K = 64

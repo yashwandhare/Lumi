@@ -25,7 +25,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.*
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -274,12 +273,6 @@ fun LumiApp(
                         invitation = "Things Lumi remembers.",
                     )
                 }
-                composable(LumiDestination.NOTES.route) {
-                    EmptyState(
-                        headline = "Notes",
-                        invitation = "Your saved notes.",
-                    )
-                }
                 composable(LumiDestination.ROUTINE.route) {
                     EmptyState(
                         headline = "Routine",
@@ -292,10 +285,10 @@ fun LumiApp(
                         invitation = "Your daily log.",
                     )
                 }
-                composable(LumiDestination.LISTS.route) {
+                composable(LumiDestination.REMINDERS.route) {
                     EmptyState(
-                        headline = "Lists",
-                        invitation = "Checklists and notes.",
+                        headline = "Reminders",
+                        invitation = "Reminders, todos, and calendar items will show up here once you ask Lumi to keep track of something.",
                     )
                 }
                 composable(LumiDestination.SEARCH_SCOPE.route) {
@@ -385,14 +378,11 @@ private fun AppDrawerContent(
         Spacer(Modifier.height(MaterialTheme.spacing.xs))
         DrawerRow(label = "Memory", selected = currentRoute == LumiDestination.MEMORY.route, onClick = { onNavigate(LumiDestination.MEMORY) }, icon = Icons.Rounded.NoteAlt)
         Spacer(Modifier.height(MaterialTheme.spacing.xs))
-        DrawerRow(label = "Notes", selected = currentRoute == LumiDestination.NOTES.route, onClick = { onNavigate(LumiDestination.NOTES) }, icon = Icons.Rounded.Edit)
-        Spacer(Modifier.height(MaterialTheme.spacing.xs))
         DrawerRow(label = "Routine", selected = currentRoute == LumiDestination.ROUTINE.route, onClick = { onNavigate(LumiDestination.ROUTINE) }, icon = Icons.Rounded.Event)
         Spacer(Modifier.height(MaterialTheme.spacing.xs))
         DrawerRow(label = "Journal", selected = currentRoute == LumiDestination.JOURNAL.route, onClick = { onNavigate(LumiDestination.JOURNAL) }, icon = Icons.Rounded.Book)
         Spacer(Modifier.height(MaterialTheme.spacing.xs))
-        DrawerRow(label = "Lists", selected = currentRoute == LumiDestination.LISTS.route, onClick = { onNavigate(LumiDestination.LISTS) }, icon = Icons.AutoMirrored.Rounded.List)
-        Spacer(Modifier.height(MaterialTheme.spacing.xs))
+        DrawerRow(label = "Reminders", selected = currentRoute == LumiDestination.REMINDERS.route, onClick = { onNavigate(LumiDestination.REMINDERS) }, icon = Icons.Rounded.Checklist)
         Spacer(Modifier.height(MaterialTheme.spacing.xs))
         DrawerRow(label = "Search Scope", selected = currentRoute == LumiDestination.SEARCH_SCOPE.route, onClick = { onNavigate(LumiDestination.SEARCH_SCOPE) }, icon = Icons.Rounded.FindInPage)
 

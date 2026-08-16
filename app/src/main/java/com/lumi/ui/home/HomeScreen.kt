@@ -292,7 +292,13 @@ fun getGreeting(): String {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AttachmentBottomSheet(onDismiss: () -> Unit) {
+fun AttachmentBottomSheet(
+    onDismiss: () -> Unit,
+    viewModel: AttachmentSheetViewModel = hiltViewModel(),
+) {
+    val webSearch by viewModel.webSearch.collectAsStateWithLifecycle()
+    val personalContext by viewModel.personalContext.collectAsStateWithLifecycle()
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         containerColor = MaterialTheme.colorScheme.surface,
@@ -342,33 +348,87 @@ fun AttachmentBottomSheet(onDismiss: () -> Unit) {
             }
             
             Spacer(Modifier.height(24.dp))
-            
-            val webRowShape = com.lumi.ui.theme.LumiShape.default
-            LumiGlassPanel(
-                modifier = Modifier.fillMaxWidth(),
-                shape = webRowShape,
-            ) {
-                Row(modifier = Modifier.padding(horizontal = MaterialTheme.spacing.md, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Rounded.Public, contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
-                    Spacer(Modifier.width(14.dp))
-                    Text("Web search", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
-                    Spacer(Modifier.weight(1f))
-                    Box(modifier = Modifier.scale(0.78f)) {
-                    Switch(
-                        checked = true,
-                        onCheckedChange = {},
-                        colors = SwitchDefaults.colors(
-                            checkedTrackColor = MaterialTheme.colorScheme.primary,
-                            checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
-                            uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant,
-                            uncheckedThumbColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
-                        )
-                    )
-                    }
-                }
-            }
-            
+
+            // The two consents this sheet asks for, in the order they matter: what may leave the
+            // device, then what Lumi may read of what is already on it.
+            ConsentRow(
+                icon = Icons.Rounded.Public,
+                label = "Web search",
+                detail = "Lets a search leave your device. Nothing else does.",
+                checked = webSearch,
+                onCheckedChange = viewModel::setWebSearch,
+            )
+
+            Spacer(Modifier.height(MaterialTheme.spacing.sm))
+
+            ConsentRow(
+                icon = Icons.Rounded.Folder,
+                label = "Use my files and mail",
+                detail = "Lets answers draw on your own documents and fetched mail. Nothing leaves the device.",
+                checked = personalContext,
+                onCheckedChange = viewModel::setPersonalContext,
+            )
+
             Spacer(Modifier.height(48.dp))
+        }
+    }
+}
+
+/**
+ * One thing the user permits or withholds, on the glass surface §4 gives raised panels.
+ *
+ * Both rows share it so the two consents cannot drift apart visually — a privacy control that looks
+ * unlike the one above it reads as a different kind of decision. State is carried by the thumb's
+ * position as well as the track's fill, so nothing here is conveyed by colour alone.
+ */
+@Composable
+private fun ConsentRow(
+    icon: ImageVector,
+    label: String,
+    detail: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    LumiGlassPanel(
+        modifier = Modifier.fillMaxWidth(),
+        shape = com.lumi.ui.theme.LumiShape.default,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = MaterialTheme.spacing.md, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                icon,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+            )
+            Spacer(Modifier.width(14.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    label,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                    detail,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Spacer(Modifier.width(MaterialTheme.spacing.sm))
+            Box(modifier = Modifier.scale(0.78f)) {
+                Switch(
+                    checked = checked,
+                    onCheckedChange = onCheckedChange,
+                    colors = SwitchDefaults.colors(
+                        checkedTrackColor = MaterialTheme.colorScheme.primary,
+                        checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
+                        uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant,
+                        uncheckedThumbColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                    ),
+                )
+            }
         }
     }
 }
