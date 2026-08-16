@@ -21,4 +21,13 @@ in yet — if it is empty, everything is already in the main log.
 
 ## Unreleased
 
-_Empty. Everything through the 2026-08-15 merge is folded into `changelog.md`._
+### Added
+- [devb] 2026-08-16 — Component library completed for the Phase 1 gate: `LumiCard` and
+  `LumiCardRow` (shared card surface with hairline edge), `LumiChip` (pill chip with icon and
+  remove slots, selection carried by fill plus weight rather than colour alone), `LumiDialog`
+  (one restyled `AlertDialog` for every Phase 3-5 confirmation), and `LumiSlider` (single
+  accent-tracked slider used by settings).
+
+### Changed
+- [devb] 2026-08-16 — Settings sliders now draw through the shared `LumiSlider` instead of a
+  stock Material `Slider`, so the parameter screen matches the rest of the design system.

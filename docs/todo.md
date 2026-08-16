@@ -185,11 +185,10 @@ including the `[deva]` items. Ownership tags are kept as a record of the origina
 
 ### Design system
 
-- [~] `[devb]` Component library. `LumiGlassPanel`, `LumiIconButton`, `LumiInput`, `LumiBlob`,
-      `MarkdownText`, and the three state components exist with shared tokens. **Cards, dialogs, and
-      chips do not; sliders are in use on the settings screen but unstyled.** Finish these here —
-      Phases 3-7 all need chips and dialogs, and building them ad-hoc per screen is how a design system
-      dies.
+- [x] `[devb]` Component library. `LumiGlassPanel`, `LumiIconButton`, `LumiInput`, `LumiBlob`,
+      `MarkdownText`, the three state components, and now cards (`LumiCard`, `LumiCardRow`),
+      dialogs (`LumiDialog`), chips (`LumiChip`), and styled sliders (`LumiSlider`, used by the
+      settings screen) all exist with shared tokens.
 - [x] `[devb]` Mascot composable. The fantasy slime per `DESIGN_LANGUAGE.md` §6, with a gradient body,
       eyes, and a glow aura — a deliberate departure from "simple circular blob".
 - [x] `[devb]` Mascot breathing animation, gated on `LocalMotionEnabled` so it respects reduced motion,

@@ -15,7 +15,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -38,6 +37,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.lumi.core.settings.ModelBackend
 import com.lumi.core.settings.ModelSettings
 import com.lumi.ui.components.LumiGlassPanel
+import com.lumi.ui.components.LumiSlider
 import com.lumi.ui.components.hairlineBorder
 import com.lumi.ui.theme.LumiShape
 import com.lumi.ui.theme.spacing
@@ -222,7 +222,7 @@ private fun SliderRow(
             Text(valueLabel, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Slider(
+        LumiSlider(
             value = value.coerceIn(range),
             onValueChange = onChange,
             valueRange = range,
