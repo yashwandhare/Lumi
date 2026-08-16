@@ -860,3 +860,76 @@ added to the app.
 are actually executed against real prior-version data. Until now nothing verified that, so the rule was a
 comment. It is now enforced by a test that creates a v1 database, migrates it, and asserts the surviving
 tables still hold their rows.
+
+### [deva] 2026-08-16 — Reversed: airplane mode is no longer an acceptance criterion
+
+Part 1 carries a rule from v1 — *"every feature must work with the network disabled; no feature is
+complete until it has been tested in airplane mode"* — with opt-in web search as a single grudging
+exception. **The owner reversed that framing on Aug 16.** Gmail-over-MCP needs OAuth, OAuth needs a
+network, and treating that as an embarrassing exception to a purity rule was distorting the plan.
+
+**The three criteria that replace it:** privacy-first, ease of use, voice-first.
+
+**What actually changed, and what did not.** Privacy-first is unchanged and non-negotiable: **every
+inference is on-device, always.** No audio, no document, no mail body, and no prompt is ever sent to an
+inference service. What changed is how that is *proved*.
+
+The old rule proved it by absence — no network code, nothing to audit. That is a real strategy and it has
+a real cost: it forbids features whose value is obvious (fetch my mail, search the web because I asked
+you to) and it collapses the moment one exception exists, which it already did.
+
+**The new rule proves it by evidence.** Two network features, both opt-in, both user-initiated, both
+through one gate that writes an audit event *before* the request. The audit log screen, a visible
+in-flight indicator, and one settings control that disables all of it. A user can *check* instead of
+trusting, which is a stronger claim than "we didn't write any network code" — that one is unverifiable
+without reading the source.
+
+**Consequences:**
+
+- The Phase 8 airplane-mode run becomes a **privacy audit**: enumerate every possible network call, prove
+  each sits behind an opt-in and an audit event, prove no other code path reaches the network, *then* run
+  the app offline and confirm every non-network feature is unaffected. Strictly more work than before.
+- **The audit log is promoted from transparency nicety to primary evidence.** It is the mechanism the
+  privacy claim now rests on, which is why wiring it into the chat path is a Phase 1 stabilisation item
+  rather than something to get around to.
+- Web search stops being a grudging exception and becomes core feature 4 — still user-initiated only,
+  never automatic, never background.
+- Gmail becomes core feature 5, read-only and one-way. The narrowest scope that works.
+- The old Part 1 entry stands as written; this entry supersedes its framing.
+
+**What this is not:** permission to be relaxed about the network. Two features may reach it. A third
+requires a new decision entry. "The network is allowed now" is a misreading — one audited chokepoint is
+allowed, and it is narrower than a general permission.
+
+### [deva] 2026-08-16 — Core feature set fixed; SOS cut, mood journal demoted
+
+The owner fixed the core set on Aug 16: **voice-first mode, a widget for reminders/todos/routines via
+device actions, file fetch, on-demand DuckDuckGo search, Gmail fetch over MCP, call mode for meetings, and
+notification reading with proactive suggestions.** Seven features. `todo.md` is rebuilt around them.
+
+**SOS is cut entirely.** It was the most complete subsystem in v1 and the largest block of the old Phase 5
+— tiered detection, Morse flashlight, siren, location, multipart SMS, foreground service. All of it is out
+of scope for what Lumi now is. `MIGRATION_1_2` drops `emergency_contacts`. Re-adding it needs a new entry.
+
+**The mood journal drops below the cut line** as an optional Phase 9. It was never load-bearing for the
+pitch, and against seven core features in five days it is the obvious thing to lose. The journaling scope
+guard — never a therapist, never a companion, never crisis detection — **still binds if it is built at
+all.** A half-built journal is precisely where that line gets crossed by accident, so the guard outlives
+the feature's demotion.
+
+**Why record a scope cut here rather than only in `todo.md`:** both of these delete work that was
+deliberately planned, and SOS in particular deletes a working v1 subsystem. Six months from now the
+obvious question is "why did they drop the finished feature?" and the answer needs to be findable.
+
+### [deva] 2026-08-16 — All documentation moved into `docs/`
+
+Nine markdown files and a PDF were sitting in the repository root next to `settings.gradle.kts`. They now
+live in `docs/`, with only `README.md` left at the root where GitHub renders it. The strategy brief was
+renamed from `Lumi_Strategy_Brief.docx.PDF` to `docs/STRATEGY_BRIEF.pdf` — the doubled extension was an
+export artefact.
+
+**Note for Dev B:** `changelog_devb.md` and `decisions_devb.md` moved too, so a branch that appends to the
+old paths will merge as a rename-plus-modify. Git handles that, but expect to see it.
+
+Done with `git mv` so the history follows the files rather than showing eight deletions and eight
+additions.

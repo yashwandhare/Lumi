@@ -29,6 +29,15 @@ Bad: `[deva] Updated RoutineWorker.kt and added BootReceiver.kt and modified the
 
 ### Added
 
+- `[deva]` **All documentation lives in `docs/`.** Nine markdown files and the strategy brief moved out of
+  the repository root; only `README.md` stays. Older entries in this file that name `todo.md` mean
+  `docs/todo.md`.
+- `[deva]` **`docs/COMPETITIVE_LANDSCAPE.md`** — the AI capture wearables Lumi is positioned against
+  (Limitless, Plaud, Bee, Omi, Friend, plus the R1, the Humane Ai Pin, and Even Realities G2), the
+  weakness they share, and an honest section on where Lumi is worse than them.
+- `[deva]` **`tools/seed-model.sh`** — pushes the 2.6GB model to a device from a digest-verified host
+  cache in about 75 seconds. `connectedAndroidTest` uninstalls the app, and an uninstall wipes
+  app-private storage, so running instrumented tests destroys the model. It has done so four times.
 - `[deva]` **Chat works end to end.** Sending a message runs it through the resident model and streams
   the reply into the transcript. Before this the send button cleared the field and called nothing — the
   UI was a shell with no path to the model at all.
@@ -102,6 +111,15 @@ Bad: `[deva] Updated RoutineWorker.kt and added BootReceiver.kt and modified the
 
 ### Changed
 
+- `[deva]` **The plan is rebuilt around seven core features** fixed by the owner on Aug 16: voice-first
+  mode, a widget for reminders/todos/routines, file fetch, on-demand DuckDuckGo search, Gmail fetch over
+  MCP, call mode for meetings, and notification reading with proactive suggestions. Phase 1 is now an
+  explicit stable-baseline gate that Phase 2 cannot start before. Voice moved from Phase 6 to Phase 2 —
+  it is the product's identity, not a late nicety.
+- `[deva]` **Airplane mode is no longer an acceptance criterion.** The criteria are privacy-first, ease of
+  use, and voice-first. On-device inference is unchanged and non-negotiable; what changed is that it is
+  proved by evidence — opt-in, audited network features — rather than by having no network code. This
+  promotes the audit log from a transparency surface to the primary proof of the privacy claim.
 - `[deva]` **The app is renamed Lumi** — package, identifiers, database, preferences, labels, spec
   documents, and logs. References to Trace v1 and Trace-beta are kept: that is the project this one
   descends from and a real checkout on disk. A new `applicationId` means a new data directory, so the
@@ -210,6 +228,10 @@ Bad: `[deva] Updated RoutineWorker.kt and added BootReceiver.kt and modified the
 
 ### Fixed
 
+- `[deva]` **Image and audio input both work.** An earlier finding said this Gemma build rejected images,
+  which was wrong — the *test* set a 1024-token context, and an image does not fit in one. At 4096 tokens
+  a solid blue square is described correctly on a Samsung SM-M356B. PRD §5's top risk is closed and Phase
+  4 can rely on vision.
 - `[deva]` **The model loads on the GPU.** Requesting a GPU *audio* backend fails engine creation
   outright, and passing a compiled-kernel `cacheDir` for an app-internal model path fails it too — v1's
   working config does neither. Both are gone, and the model now loads on GPU with speculative decoding
@@ -251,6 +273,11 @@ Bad: `[deva] Updated RoutineWorker.kt and added BootReceiver.kt and modified the
 
 ### Removed
 
+- `[deva]` **SOS, entirely.** The largest planned subsystem and the most complete one in v1 — tiered
+  detection, Morse flashlight, siren, location, multipart SMS, foreground service. Out of scope for what
+  Lumi is now. `MIGRATION_1_2` drops the `emergency_contacts` table, tested against a real v1 database.
+- `[deva]` **The mood journal is demoted**, not removed — it moves below the cut line as an optional
+  Phase 9. The rule that Lumi is never a therapist, companion, or crisis detector still binds if it ships.
 - `[devb]` `LumiShapes`, an unused second `Shapes` object dead since the theme moved to the 16dp
   `CohesiveShapes`, and the `SumiGreen`/`ZenIndigo` colours left behind by the olive palette.
 - `[deva]` The five-item bottom navigation bar, replaced by nine sidebar destinations with left and

@@ -9,8 +9,9 @@ Built on Gemma 4 E2B via LiteRT-LM, with Kotlin, Jetpack Compose, Room, and Work
 
 ## Status
 
-Phase 0 of the v2 rebuild. The project scaffold, theme tokens, database schema, and core contracts are
-in place. See `todo.md` for the full plan and what is done.
+**Phase 1 — stable baseline.** Gemma 4 E2B loads and stays resident, chat streams and persists,
+settings and backend selection work, and image and audio input are both verified on device. Phase 2
+adds voice-first interaction and the router. See `docs/todo.md` for the full plan and what is done.
 
 ## Building
 
@@ -41,11 +42,31 @@ future migration is validated against. There is no destructive-migration fallbac
 
 ## Project documents
 
+Everything lives in `docs/`. This README is the only document at the repository root.
+
 | File | What it is |
 |---|---|
-| `todo.md` | The phase plan, with every task assigned to Dev A or Dev B |
-| `decisions.md` | Why things are the way they are. Read before reversing anything |
-| `changelog.md` | What changed |
-| `for_devb.md` | Dev B's brief |
+| `docs/todo.md` | The phase plan, with every task assigned to Dev A or Dev B |
+| `docs/decisions.md` | Why things are the way they are. Read before reversing anything |
+| `docs/changelog.md` | What changed |
+| `docs/DESIGN_LANGUAGE.md` | The UI authority. Supersedes the design spec's UI sections |
+| `docs/COMPETITIVE_LANDSCAPE.md` | The AI wearables Lumi is positioned against, and where it is weaker |
+| `docs/STRATEGY_BRIEF.pdf` | Why the product is positioned as it is |
+| `docs/for_devb.md` | Dev B's brief |
+
+## Privacy
+
+Every inference is on-device. Two features reach the network — DuckDuckGo search and Gmail fetch over
+MCP — and both are opt-in, user-initiated, and audited. Neither sends anything to an inference service:
+the network fetches, it never infers. A fetched email is summarised by Gemma on the phone.
+
+The audit log records every capability call and every network request, so the claim can be checked
+rather than trusted.
+
+## Tools
+
+`tools/seed-model.sh` pushes the 2.6GB model to a device from a digest-verified host cache. Running
+`connectedAndroidTest` uninstalls the app, and an uninstall wipes app-private storage — this restores
+the model in about 75 seconds instead of a re-download.
 
 Trace v1 exists as a separate reference checkout. It is read for understanding, never copied from.
