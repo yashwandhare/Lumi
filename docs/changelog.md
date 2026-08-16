@@ -118,6 +118,23 @@ Bad: `[deva] Updated RoutineWorker.kt and added BootReceiver.kt and modified the
 - `[deva]` Planning documents: `todo.md` with the phase plan and Dev A / Dev B split, `decisions.md`,
   `changelog.md`, and `for_devb.md` as Dev B's self-contained brief.
 
+### Fixed
+
+- `[deva]` **The mic button could never be pressed.** It was disabled until the microphone permission
+  was granted, and the permission was only requested by pressing it — so on a fresh install voice was
+  unreachable. The button is now live until a refusal, and the first tap is what asks.
+- `[deva]` **The first mic tap killed the app, twice over.** Both were native aborts inside sherpa, which
+  no Kotlin `catch` can intercept. The recognizer was built with an `AssetManager`, so sherpa looked for
+  the downloaded models inside the APK and aborted when it could not find them; it must be null when the
+  models live in `filesDir`. Then `decode` was called on every audio buffer without asking `isReady`
+  first, so a buffer shorter than one feature window aborted the feature extractor. Decoding now loops
+  while `isReady`, which also stops the transcript falling behind the speaker, and drains the remaining
+  frames at the endpoint so the last word is not clipped.
+- `[deva]` **Text-to-speech reported itself available on devices that cannot speak.** It set the language
+  and then read the deprecated getter back, which returns the locale just set even when its voice data is
+  not installed — so a missing voice pack surfaced as silence instead of an honest failure. It now reads
+  `setLanguage`'s return code.
+
 ### Changed
 
 - `[deva]` **The home screen mascot's eyes are larger and oval.** Only that one — it owns the middle of an
