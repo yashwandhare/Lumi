@@ -257,3 +257,67 @@ half a day, tell the owner and cut the lowest remaining item rather than leaving
 half-finished. Four complete features demo. Seven partial features do not demo at all.
 
 Prefer a working plain version of a screen over a beautiful unfinished one.
+
+## Continuation brief — Aug 16, evening
+
+Appended by Dev A at the end of the Aug 16 session. **This is the most current statement of where things
+stand; where it disagrees with a section above, this wins.**
+
+### What landed today
+
+- **Every chat turn is audited.** Success, stopped, and failed alike. The entry carries the capability, the
+  backend, and the timing, and **never the prompt or the reply text.** Four instrumented tests cover it.
+  This is the pattern every capability from Phase 2 on copies — read `ChatViewModel.recordTurn` before you
+  build anything that needs to write an audit event, and do not add content fields to it.
+- **A Stop control on the composer.** The send button becomes a filled stop square in the accent while a
+  reply is decoding. Found by the exit run: there was no way to interrupt a reply at all. Partial text is
+  kept, persisted, and audited as `PARTIAL`.
+- **The home screen mascot's eyes are bigger and oval.** `LumiBlob` now takes an `eyeSize: DpSize`,
+  defaulting to the original near-circular pair. **Only the home screen passes the larger value.** If you
+  add a mascot instance, leave the default alone unless it is a hero-sized one.
+- Vision is confirmed working at a 4096-token context. Phase 4 can rely on image understanding.
+- Docs moved into `docs/`, the plan was rebuilt around the seven core features, and SOS was cut.
+
+### The gate is still open — do not start Phase 2 screens yet
+
+Three stabilisation items remain, all Dev A's, none known-broken and none checked:
+
+1. Rotation and process-death pass on the chat screen.
+2. One low-memory pass with the model resident.
+3. Exit-run scenarios 3, 4, and 5 — new-chat/reopen context isolation, backgrounding mid-reply, and
+   kill-and-relaunch — plus re-verifying the GPU leg of scenario 1 on the current build.
+
+Scenarios 1 (CPU) and 2 pass. Cold start on CPU is **3.0s** with warm compilation caches. `docs/todo.md`
+records exactly which boxes are ticked and which are not; trust that file over anyone's summary.
+
+**Your unblocked work right now is the component library** — cards, dialogs, chips, and styled sliders.
+`docs/todo.md` still has it at `[~]`. Phases 3-7 all need chips and dialogs, and it is the one thing you
+can finish without waiting on the gate or on a Dev A interface. Do that before Phase 2 screens.
+
+### When the gate closes, start here
+
+Your first Phase 2 items, in order:
+
+1. **Voice session UI** — listening, thinking, speaking, mascot-anchored. The screen a judge remembers.
+2. **Live transcript surface** — the user sees words as they are recognised and can correct course.
+3. **Interpreted-intent surface** — where an action has consequence, show what Lumi understood first.
+
+Build 1 and 2 against a fake state holder if Dev A's ASR spike is still running. The spike is timeboxed to
+two hours and may land on `SpeechRecognizer` rather than Sherpa; **either way the UI states are the same
+three**, so nothing you build there is wasted. Do not wait on it.
+
+### Two things to know before you touch the composer or the transcript
+
+- **`LumiInput` now has `generating` and `onStop` parameters.** If you reuse the composer in a voice or
+  call-mode screen, wire them — a composer that cannot interrupt is the bug that was just fixed.
+- **Stopped replies are persisted; failed replies are not.** That asymmetry is deliberate. A truncated
+  answer stored without its failure notice reads as a complete answer on reopen, and a reply that
+  misrepresents itself is worse than one that is missing. Keep it if you touch persistence.
+
+### Still true, and worth repeating
+
+- Work on `devb`. Push only `devb`. Dev A merges to `main`.
+- Stage entries in `docs/changelog_devb.md` and `docs/decisions_devb.md`, prefixed `[devb]`.
+- Zero compiler warnings. The build is at zero right now — `assembleDebug` and `installDebug` both clean.
+- Verify on the device, not by reading your own code. The Stop control existed in the plan for a day
+  before anyone noticed there was no button for it, and only a device run found that.

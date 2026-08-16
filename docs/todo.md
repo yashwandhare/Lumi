@@ -216,22 +216,36 @@ Nothing here is a feature. All of it is the difference between a demo and a cras
       cache beyond the 2.6GB model, so the preflight check reserves 1.1GB of headroom.
 - [x] `[deva]` `ModelStore.clear()` deletes the whole model directory. It previously removed three named
       files and orphaned ~600MB of cache.
-- [ ] `[deva]` **Wire `AuditLog` into the chat path.** It exists, it is tested, and **nothing writes to
-      it.** The audit log is how privacy-first is *proved* rather than claimed, so it cannot start life
-      incomplete — every capability from Phase 2 on writes to it, and chat is the first.
+- [x] `[deva]` **Wire `AuditLog` into the chat path.** Every turn writes an entry — success, stopped, and
+      failed alike — carrying the capability, the backend, and the timing, and **never the prompt or the
+      reply text.** The audit log is how privacy-first is *proved* rather than claimed, so it could not
+      start life incomplete. Four instrumented tests cover the three outcomes and the no-content rule.
+      Every capability from Phase 2 on follows this pattern; chat is the reference.
+- [x] `[deva]` **A Stop control.** Found by the exit run below: the composer had no way to interrupt a
+      reply. The send button becomes a filled stop square in the accent while a reply is in flight, the
+      partial text is kept and persisted, and the turn is audited as `PARTIAL`. A model that cannot be
+      interrupted is a model that owns the screen for as long as it wants — on a 2B decoding at ~12 tok/s
+      a long answer is thirty seconds of nothing the user can do.
 - [ ] `[deva]` Process-death and rotation pass on the chat screen. A streaming reply interrupted by a
       configuration change must not lose the turn or leak the generation coroutine.
 - [ ] `[deva]` One low-memory pass with the model resident. The Engine holds ~2.6GB of mapped weights;
       confirm what happens when Android reclaims the process mid-conversation, and that the reload path
       is the same one first-run uses.
-- [ ] `[both]` **Baseline exit run on the physical device**, fresh launch, no debugger:
-      1. Cold start → model loads on CPU, then again on GPU from settings.
-      2. Ten-turn conversation with markdown, code, and a numbered list all rendering correctly.
-      3. New chat, reopen an old chat from the drawer, both keep their own context.
-      4. Background the app mid-reply, return, the reply is intact.
-      5. Kill and relaunch. History is there. No crash, no ANR, no orphaned notification.
+- [~] `[both]` **Baseline exit run on the physical device**, fresh launch, no debugger. Three of five
+      scenarios pass; **the gate is not closed.** Verified on a Samsung SM-M356B, fresh install:
+      1. **[x]** Cold start → model loads on CPU. **3.0s** with warm compilation caches, 8-12s without.
+         **GPU not yet re-verified on this build** — it loaded in 14-21s when last measured.
+      2. **[x]** Conversation renders markdown, a numbered list, and a fenced code block correctly, and
+         holds context across turns ("which was the second one?" resolves against the previous answer).
+         Warm reply 4.3s against 18.6s cold. **Run to ten turns before ticking this fully** — two were
+         checked.
+      3. **[ ]** New chat, reopen an old chat from the drawer, both keep their own context.
+      4. **[ ]** Background the app mid-reply, return, the reply is intact.
+      5. **[ ]** Kill and relaunch. History is there. No crash, no ANR, no orphaned notification.
 
-**Phase 2 does not start until every box in Stabilisation is ticked.**
+**Phase 2 does not start until every box in Stabilisation is ticked.** As of Aug 16 evening three items
+remain: the rotation and process-death pass, the low-memory pass, and scenarios 3-5 plus the GPU leg of
+scenario 1. None is known-broken; none has been checked.
 
 ## Phase 2 — Voice-first mode and the router
 

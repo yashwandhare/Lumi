@@ -29,6 +29,15 @@ Bad: `[deva] Updated RoutineWorker.kt and added BootReceiver.kt and modified the
 
 ### Added
 
+- `[deva]` **A Stop control on the composer.** While a reply is decoding the send button becomes a filled
+  stop square in the accent; tapping it ends the reply, keeps the text that already arrived, and stores
+  it. There was previously no way to interrupt a reply at all — the send button simply went inert, so a
+  long answer held the screen until it finished.
+- `[deva]` **Every chat turn is audited.** Answered, stopped, and failed turns each write an entry
+  recording the capability, the backend it ran on, and the timing. **No prompt text and no reply text
+  ever reach the audit log** — the conversation already has one home the user can read and delete, and
+  the audit table's job is to show *that* Lumi acted, not to repeat what was said. The backend field is
+  the part that matters: it is the evidence the inference was local.
 - `[deva]` **All documentation lives in `docs/`.** Nine markdown files and the strategy brief moved out of
   the repository root; only `README.md` stays. Older entries in this file that name `todo.md` mean
   `docs/todo.md`.
@@ -110,6 +119,13 @@ Bad: `[deva] Updated RoutineWorker.kt and added BootReceiver.kt and modified the
   `changelog.md`, and `for_devb.md` as Dev B's self-contained brief.
 
 ### Changed
+
+- `[deva]` **The home screen mascot's eyes are larger and oval.** Only that one — it owns the middle of an
+  otherwise empty screen and is the mascot a user actually looks at, so its eyes carry the expression. The
+  docked mascot in the top bar and the sleeping one on the loading screen keep the smaller near-circular
+  pair, because the same oval closes to a smudge at 32dp. The blink and squint poses are now fractions of
+  the open height rather than fixed dp, so they scale with the eye instead of leaving a large eye barely
+  moving when it blinks.
 
 - `[deva]` **The plan is rebuilt around seven core features** fixed by the owner on Aug 16: voice-first
   mode, a widget for reminders/todos/routines, file fetch, on-demand DuckDuckGo search, Gmail fetch over

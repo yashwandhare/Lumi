@@ -933,3 +933,53 @@ old paths will merge as a rename-plus-modify. Git handles that, but expect to se
 
 Done with `git mv` so the history follows the files rather than showing eight deletions and eight
 additions.
+
+### [deva] 2026-08-16 — A stopped reply is persisted; a failed reply is not
+
+Two outcomes that look symmetrical are stored differently, and the asymmetry is deliberate.
+
+**Stopped** — the user pressed Stop. Whatever text arrived is kept on screen *and written to the database*.
+Keeping it only on screen was the original behaviour, and it meant the answer was there until the user
+reopened the conversation and then silently was not. That is the same class of bug as history not working
+at all, just with a delay before it bites.
+
+**Failed** — generation threw. The partial text stays on screen with a failure notice appended, and
+**none of it is stored.** A truncated answer stored without the notice beside it reads as a complete answer
+on reopen. A reply that misrepresents itself is worse than a reply that is missing.
+
+Two implementation notes that are easy to get wrong and were:
+
+- `CancellationException` must be caught **before** `Throwable` and rethrown. Catching it as a failure
+  appended "Lumi could not finish that reply" to a reply the user chose to end; swallowing it would leave
+  the parent scope believing the job completed.
+- The write for the stopped case runs on the **application scope**, not `viewModelScope`. The caller is a
+  cancelled coroutine and a cancelled coroutine cannot suspend, so a Room write from inside the `catch`
+  would be dropped — precisely in the case worth recording. The audit write has the same constraint for
+  the same reason.
+
+### [deva] 2026-08-16 — The Stop control, and why it was missing
+
+The composer had no way to interrupt a reply. `ChatViewModel.stop()` existed and worked; nothing called it.
+The send button simply went inert while decoding, so a long answer held the screen until it finished — on a
+2B model decoding at roughly 12 tok/s that is thirty seconds during which the only available action is to
+leave the app.
+
+Found by running the Phase 1 exit run on a device rather than by reading the plan, which is the argument
+for the exit run existing. The plan had "streaming generation" ticked and it was true; the gap was one
+button away from the code that was already correct.
+
+The send button *becomes* the stop button rather than sitting beside it. A separate always-present stop
+control would be inert most of the time, and the composer already has two permanent affordances plus
+attach; a fourth would crowd a surface whose whole design is sparseness.
+
+### [deva] 2026-08-16 — Mascot eye size is a parameter, and only the home screen changes it
+
+`LumiBlob` draws at 69dp on the home screen and 32dp docked in the top bar. The home screen's is the one a
+user looks *at* — it owns the middle of an otherwise empty screen — so its eyes were enlarged and made oval
+to carry more expression. At 32dp the same oval closes to a smudge, so the parameter defaults to the
+original near-circular pair and every other call site is untouched.
+
+The blink and squint poses became **fractions of the open height** rather than fixed dp values in the same
+change. They were hardcoded at 2dp and 6dp, which happened to be right for a 6dp eye; against a 10dp eye a
+2dp blink barely moves and stops reading as a blink. Anything that scales with the eye has to scale with
+it, not next to it.
