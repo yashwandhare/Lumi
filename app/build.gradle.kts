@@ -85,6 +85,16 @@ dependencies {
         implementation("org.jetbrains.kotlinx:kotlinx-serialization-core:1.8.1")
     }
 
+    // Streaming ASR runtime. Fetched by tools/fetch-sherpa.sh into libs/sherpa/, pinned there by
+    // size and SHA-256, and never committed — a 49MB binary, kept out of git like the models.
+    // Checked at configuration time so a missing artefact fails with instructions, not with a
+    // cascade of unresolved-symbol errors at the end of a long compile.
+    val sherpaAar = rootProject.file("libs/sherpa/sherpa-onnx-1.13.5.aar")
+    require(sherpaAar.isFile) {
+        "Missing ${sherpaAar.path}. Run tools/fetch-sherpa.sh to fetch the pinned sherpa-onnx AAR."
+    }
+    implementation(files(sherpaAar))
+
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.runtime.compose)

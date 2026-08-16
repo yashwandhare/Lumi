@@ -27,6 +27,9 @@ captures/
 *.jks
 *.keystore
 
+# Vendored binaries are fetched by tools/ scripts, never committed — see tools/fetch-sherpa.sh.
+libs/sherpa/
+
 # Models are fetched at first run, never committed.
 *.litertlm
 *.tflite
