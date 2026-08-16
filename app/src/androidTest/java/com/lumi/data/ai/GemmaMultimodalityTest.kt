@@ -49,14 +49,17 @@ class GemmaMultimodalityTest {
         val model = modelFile()
         assumeTrue("Model not on device; skipping", model.isFile && model.length() == GemmaModel.managed.sizeBytes)
 
-        // Vision on GPU, following v1's configuration. Audio is left null here: requesting a GPU audio
-        // backend is one of the two things that stopped the engine loading at all.
+        // Vision on **CPU**, which is what v1 actually shipped: `DEFAULT_VISION_ACCELERATOR =
+        // Accelerator.CPU`, and its on-device cache files are named `vision_encoder.xnnpack_cache_*`
+        // — xnnpack being the CPU delegate. An earlier run of this test used GPU and the model failed
+        // inside nativeSendMessage; the "must be GPU" comment in v1's EngineConfig refers to Gemma 3n,
+        // not Gemma 4, and following it was my mistake.
         val engine = Engine(
             EngineConfig(
                 modelPath = model.absolutePath,
                 backend = Backend.CPU(),
-                visionBackend = Backend.GPU(),
-                maxNumTokens = 1024,
+                visionBackend = Backend.CPU(),
+                maxNumTokens = 4096,
             )
         )
 
@@ -103,7 +106,7 @@ class GemmaMultimodalityTest {
                 modelPath = model.absolutePath,
                 backend = Backend.CPU(),
                 audioBackend = Backend.CPU(),
-                maxNumTokens = 1024,
+                maxNumTokens = 4096,
             )
         )
 

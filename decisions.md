@@ -797,41 +797,47 @@ retrieve slightly badly, which is close to undiagnosable. Not a risk worth 150MB
 Ultra, so expect two to three times that here. `Embedder` is an interface precisely so Universal Sentence
 Encoder — 6MB, 10ms, weaker retrieval — is one class away if that proves unacceptable.
 
-### [deva] 2026-08-16 — Measured: this Gemma 4 build takes audio, not images
+### [deva] 2026-08-16 — Measured: vision and audio both work. My first result was wrong.
 
-PRD §5's top risk, answered on a Samsung SM-M356B by instrumented test rather than by assumption. The
-result is split, and the half that fails is the half the brief leans on less.
+PRD §5's top risk, answered on a Samsung SM-M356B by instrumented test. **Both image and audio input are
+accepted.** The test draws a solid blue square, asks what colour it is, and Gemma replies "Blue" — so the
+image is genuinely being seen, not merely tolerated.
 
-**Audio: accepted.** `Content.AudioBytes` with `audioBackend = Backend.CPU()` produced a reply. Note the
-backend — CPU, matching v1's "must be CPU" comment. This is a second, independent confirmation of the
-finding that a GPU audio backend is what broke engine creation.
+**I recorded the opposite an hour earlier and it was my bug, not the model's.** The first run failed inside
+`nativeSendMessage` with `INTERNAL: Failed to invoke the compiled model`, and I wrote it up as a build
+limitation matching brief §5.3's warning about inference-time multimodal failures. That was wrong, and the
+owner was right to challenge it on the grounds that v1's vision feature worked.
 
-**Image: rejected at inference.** `Content.ImageBytes` with `visionBackend = Backend.GPU()` loads the
-engine fine and then fails inside `nativeSendMessage`:
+**The actual cause: `maxNumTokens = 1024` in the test.** An image expands into hundreds of tokens on top of
+the prompt, so the context overflowed and the runtime reported it as a generic invoke failure. v1 runs
+`maxNumTokens = 4096`; raising the test to match fixed it immediately.
 
-```
-INTERNAL: ERROR: [llm_litert_compiled_model_executor.cc:756] Failed to invoke the compiled model
-```
+**Two things I mis-diagnosed on the way, worth recording so nobody repeats them:**
 
-**This is exactly the failure shape brief §5.3 warns about** — not a load error, an *inference* error. §5.3
-describes a Qualcomm × Google team hitting an undocumented Jinja chat-template failure at inference on a
-cleanly exported Gemma 4 E2B, and calls it "the worst possible time to discover this: mid-demo". The brief
-predicted the class of bug; this is a measurement of it on our own device and artefact.
+1. **The backend was never the problem.** I suspected `visionBackend` and switched GPU→CPU based on v1's
+   `DEFAULT_VISION_ACCELERATOR = Accelerator.CPU` and its `vision_encoder.xnnpack_cache_*` files. CPU
+   failed too, at 1024 tokens. Vision is fine on either; v1's "must be GPU for Gemma 3n" comment refers to
+   Gemma 3n and does not apply to Gemma 4.
+2. **v1 and Lumi run the byte-identical artefact.** v1's allowlist advertises 3,136,226,711 bytes but the
+   file on disk is 2,588,147,712 with SHA-256 `181938105e…a63c` — the same digest Lumi pins. The allowlist
+   figure is stale metadata, so the size difference I first treated as a lead was a red herring.
 
 **Consequences:**
 
-- **Do not demo image input.** Not as a stretch, not as a "might work". It fails at the moment of use.
-- §5.2's claim that vision, audio, and text run through one decoder-only transformer stays true of the
-  architecture and is **not** currently true of this build's usable surface. The pitch may say Gemma 4 is
-  natively multimodal; it must not show Lumi answering questions about an image.
-- Vision remains worth retesting if the artefact is re-pushed upstream, since this is a build property
-  rather than a device limitation. Retest by running `GemmaMultimodalityTest`, which exists for this.
-- Audio being accepted does **not** change the ASR decision. Sherpa still does 100% of speech-to-text for
-  call mode, because Gemma's 30-second clip cap makes it unusable for a 45-60 minute meeting regardless of
-  whether it accepts audio at all.
+- **Image input is demoable**, and §5.2's one-model-for-text-vision-audio claim holds in practice.
+- **Any engine that accepts images needs a real context budget.** 1024 tokens is enough for text and not
+  for an image. When the vision path is built, size the window for the image plus the prompt plus the reply,
+  and treat a bare invoke failure as a possible overflow rather than a capability limit.
+- Brief §5.3's warning still stands for *fine-tuned, custom-exported* models. It does not apply to
+  as-shipped Gemma 4, which is what §5.3 tells us to use anyway.
+- Audio acceptance still does not change the ASR decision: Gemma's 30-second clip cap makes it unusable for
+  a 45-60 minute meeting regardless, so Sherpa keeps 100% of call-mode speech-to-text.
 
-The test asserts nothing about which way the answer goes — it records what the runtime does and fails only
-on an unexpected *kind* of error. That is why it could produce this finding instead of a red build.
+**Process note, since this is the second time a swallowed or mis-read error cost real time:** the test was
+written to record rather than assert, which is why a wrong finding surfaced as a log line I could re-run
+instead of a red build I might have "fixed" by weakening the test. That part worked. What failed was my
+willingness to accept a plausible external explanation — the brief predicted this exact failure shape, and
+that made me stop looking. A prediction matching the symptom is not a diagnosis.
 
 ### [deva] 2026-08-16 — Two test-infrastructure gaps found while proving the migration
 
