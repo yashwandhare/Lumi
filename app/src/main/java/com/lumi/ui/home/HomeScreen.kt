@@ -66,6 +66,7 @@ fun HomeScreen(
     // stays disabled and the app explains once, instead of re-asking on every tap — which is
     // how a denial becomes a nag. The recovery offered is the one that exists: typed input.
     var showMicDeniedDialog by remember { mutableStateOf(false) }
+    var micDenied by remember { mutableStateOf(false) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -75,17 +76,24 @@ fun HomeScreen(
             reactionCount++
             viewModel.startVoiceSession()
         } else {
+            micDenied = true
             showMicDeniedDialog = true
         }
     }
 
     /**
-     * The mic button acts when the platform has granted recording permission and nothing is
-     * already in flight. Engine readiness is *not* required here: the first tap starts the
-     * ~41MB model download, which is why the overlay can show itself downloading. A button
-     * gated on the model being present would never get pressed on a fresh install.
+     * The mic button acts when a tap can achieve something.
+     *
+     * **The permission grant is deliberately not a condition.** The first tap is what requests it, so
+     * gating the button on `micGranted` deadlocks: the button is disabled on a fresh install, the tap
+     * never fires, the request is never made, and voice can never be turned on at all. Only a refusal
+     * quietens the button, because that is the one state a further tap cannot improve.
+     *
+     * Engine readiness is not required either: the first tap starts the ~41MB model download, which is
+     * why the overlay can show itself downloading. A button gated on the model being present would
+     * never get pressed on a fresh install.
      */
-    val canListen = micGranted && !generating && listening == null
+    val canListen = !micDenied && !generating && listening == null
 
     val conversationStarted = turns.isNotEmpty()
 
@@ -176,7 +184,16 @@ fun HomeScreen(
                 reactionCount++
             },
             canListen = canListen,
-            onVoice = { permissionLauncher.launch(Manifest.permission.RECORD_AUDIO) },
+            // Already granted goes straight to listening; otherwise the tap is the permission
+            // request, and its callback starts the session on a grant.
+            onVoice = {
+                if (micGranted) {
+                    reactionCount++
+                    viewModel.startVoiceSession()
+                } else {
+                    permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                }
+            },
             modifier = Modifier.padding(bottom = 16.dp)
         )
     }
