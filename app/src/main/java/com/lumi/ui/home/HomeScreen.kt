@@ -40,6 +40,7 @@ fun HomeScreen(
 
     val turns by viewModel.turns.collectAsStateWithLifecycle()
     val canSend by viewModel.canSend.collectAsStateWithLifecycle()
+    val generating by viewModel.generating.collectAsStateWithLifecycle()
     val thinkingVerb by viewModel.thinkingVerb.collectAsStateWithLifecycle()
 
     val conversationStarted = turns.isNotEmpty()
@@ -73,7 +74,11 @@ fun HomeScreen(
             LumiBlob(
                 modifier = Modifier.size(69.dp),
                 isTyping = isTyping,
-                reactionTrigger = reactionCount
+                reactionTrigger = reactionCount,
+                // Larger and oval here, and only here. This is the one mascot the user actually looks
+                // at — it owns the middle of an otherwise empty screen — so the eyes carry its
+                // expression. The docked mascot and the sleeping one keep their smaller default pair.
+                eyeSize = androidx.compose.ui.unit.DpSize(width = 6.dp, height = 10.dp),
             )
 
             androidx.compose.animation.AnimatedVisibility(
@@ -108,6 +113,8 @@ fun HomeScreen(
             // False while the model loads or is already decoding. Before this, the send button looked
             // alive at all times and a tap silently did nothing.
             canSend = canSend,
+            generating = generating,
+            onStop = { viewModel.stop() },
             showAttach = true,
             onAttach = {
                 showAttachmentSheet = true
