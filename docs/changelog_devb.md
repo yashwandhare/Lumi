@@ -22,6 +22,15 @@ in yet — if it is empty, everything is already in the main log.
 ## Unreleased
 
 ### Added
+- [devb] 2026-08-16 — Chat now dispatches through the capability registry like every other
+  capability — one dispatch path for typed, spoken, and widget input alike. Conversation
+  persistence and the per-turn audit entry stay with the chat view model because they need the
+  conversation id the capability contract does not carry; the split is flagged for Phase 3.
+- [devb] 2026-08-16 — Interpreted-intent confirmation: consequence-bearing routes (device
+  settings, file, routine, reminder, to-do, search, mail) pause at a dialog that names the
+  understood action and quotes the sentence that produced it, then acts only on an explicit
+  yes. Ambiguous input asks a clarifying question instead of guessing — guessing is the worse
+  behaviour for a product that can flip settings and fetch mail.
 - [devb] 2026-08-16 — Voice session surface: push-to-talk from the composer mic button, with
   distinct Listening / Thinking / Speaking states anchored on the mascot, a live transcript
   that updates as words settle, and one stop button per phase. First mic tap requests the
