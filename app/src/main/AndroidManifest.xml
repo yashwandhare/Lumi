@@ -9,6 +9,13 @@
     -->
 
     <!--
+      Microphone capture. Phase 2 voice: the user speaks and Lumi listens, push-to-talk only,
+      never an always-on wake word (decisions.md). Requested at runtime on first use; a denied
+      grant falls back to typed input rather than erroring.
+    -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <!--
       The one network permission, and the only thing that uses it is the first-run model download.
       Every feature works with the network disabled (decisions.md), and the single deliberate
       exception — opt-in web search — is session-only and off by default.
