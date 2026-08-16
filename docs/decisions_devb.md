@@ -133,3 +133,25 @@ recognition half was in contention.
 sherpa fails on the device, the fix loop is on-device and the fallback is the honest one the
 docs already require: typed input, stated plainly. Two half-working ASR paths would cost more
 builds than the one path the owner chose.
+
+### [devb] 2026-08-16 — The network gate is enforced inside the dispatcher, not in the network capabilities
+
+`CapabilityDispatcher` runs the opt-in check and the pre-request audit write for SEARCH and
+MAIL before either capability executes; the capabilities themselves contain no network
+permission logic.
+
+**Why here and not in each capability:** the brief requires one chokepoint, not two code
+paths, and a gate that lives inside a capability is only as strong as that capability author's
+discipline — the third network feature (if one ever gets approved) would simply be written
+without one. Enforcing it in the dispatcher makes bypassing the gate a structural change to
+the dispatch path, which is reviewable, instead of an omission, which is not. `NetworkFeature`
+is a closed enum exactly so the privacy audit remains enumerable.
+
+**Refusals are audited as SKIPPED, in plain language.** The log must read as a true history —
+"the user asked, Lumi declined, nothing went out" — not only as a record of requests that
+succeeded. Pre-request entries are written before the fetch regardless of how the fetch later
+ends, because the audit proves the fact of leaving the device, not the outcome.
+
+**Reversal condition:** if a capability needs to make several gated requests, or needs to
+decide per-request (e.g. a fetch that fans out), the gate moves into the capability and this
+entry gets superseded, not quietly worked around.

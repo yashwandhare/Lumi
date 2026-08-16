@@ -256,61 +256,65 @@ strategy brief forced, and it means the ASR question gets settled on day one of 
 
 ### ASR and TTS
 
-- [ ] `[deva]` **Prove Sherpa-ONNX streaming ASR on the device before anything else in this phase.**
+- [x] `[deva]` **Prove Sherpa-ONNX streaming ASR on the device before anything else in this phase.**
       Highest-risk item in the plan. v1 built an offline stack, hit unacceptable latency and glitching on
       the target hardware, and reverted it. **Timeboxed to two hours:** a streaming model on the
       SM-M356B, partial results while speaking, latency measured and written down. **If it fails, fall
       back to `SpeechRecognizer` immediately** and record the decision — do not spend a day rescuing it.
-- [ ] `[deva]` Streaming partial results, so text appears as the user speaks. v1's batch model only
+      *(Superseded by the owner's 2026-08-16 ASR reversal in `decisions_devb.md`: sherpa-ONNX is the
+      Phase 2 stack, proven on the connected g54; the SpeechRecognizer fallback is not wired.)*
+- [x] `[deva]` Streaming partial results, so text appears as the user speaks. v1's batch model only
       produced text after recording stopped, which read as seconds of dead latency and is the single
       reason its voice stack felt broken.
-- [ ] `[deva]` **Bug 1 from v1 — cancel on send.** If the mic is active and the user types and hits
+- [x] `[deva]` **Bug 1 from v1 — cancel on send.** If the mic is active and the user types and hits
       send, the recording loop must be cancelled cleanly. In v1 the mic stayed live in the background.
-- [ ] `[deva]` **Bug 2 from v1 — TTS queue.** Append streamed chunks to the TTS queue. Do **not** cancel
+- [x] `[deva]` **Bug 2 from v1 — TTS queue.** Append streamed chunks to the TTS queue. Do **not** cancel
       the speak job on each new chunk — v1 did, so the engine interrupted its own sentence, skipped
       words, and restarted mid-phrase.
-- [ ] `[deva]` `InteractionOrigin`, so TTS speaks only turns that came from voice.
-- [ ] `[deva]` Push-to-talk only. No always-on wake word — battery drain, false triggers, and
+- [x] `[deva]` `InteractionOrigin`, so TTS speaks only turns that came from voice.
+- [x] `[deva]` Push-to-talk only. No always-on wake word — battery drain, false triggers, and
       background-service reliability make it a live-demo risk. Describe it as next; do not claim it works.
 - [ ] `[deva]` Voice session invocation from the widget and a home-screen hold, sharing the resident
       model session rather than a separate activity holding its own Engine.
-- [ ] `[deva]` Offline-capability check with an honest failure. If neither Sherpa nor an installed
+- [x] `[deva]` Offline-capability check with an honest failure. If neither Sherpa nor an installed
       offline language pack is available, say so plainly and fall back to typed input rather than
       appearing to hang.
-- [ ] `[devb]` Voice session UI: distinct listening, thinking, and speaking states, mascot-anchored.
+- [x] `[devb]` Voice session UI: distinct listening, thinking, and speaking states, mascot-anchored.
       This is the screen a judge will remember — it carries the voice-first claim on its own.
-- [ ] `[devb]` Live transcript surface, so the user sees the words being recognised and can correct
+- [x] `[devb]` Live transcript surface, so the user sees the words being recognised and can correct
       course before Lumi acts.
 
 ### Router and dispatcher
 
-- [ ] `[deva]` Input normalization layer. Typed text, voice transcript, and widget input all converge on
+- [x] `[deva]` Input normalization layer. Typed text, voice transcript, and widget input all converge on
       one internal representation. Design Spec §4.2.
-- [ ] `[deva]` Router tier 1 — rules. Regex and keyword matching for exact device commands. Zero
+- [x] `[deva]` Router tier 1 — rules. Regex and keyword matching for exact device commands. Zero
       latency, deterministic, no model. Always runs first. **SOS phrases are gone from this tier.**
-- [ ] `[deva]` Router tier 2 — embedding similarity over EmbeddingGemma. Classify reminder, todo,
+- [x] `[deva]` Router tier 2 — embedding similarity over EmbeddingGemma. Classify reminder, todo,
       routine, RAG query, file request, web search, mail fetch, and plain chat by cosine similarity
       against labelled example phrases per intent. Keep the phrase lists in one editable place: when the
       router is wrong, the fix should be adding a phrase, not changing code.
 - [ ] `[deva]` Router tier 3 — Gemma 4. Only for reasoning, generation, and ambiguity the first two
       tiers cannot settle.
-- [ ] `[deva]` Every tier returns the same shape — intent, confidence, structured payload — so the
+- [x] `[deva]` Every tier returns the same shape — intent, confidence, structured payload — so the
       dispatcher does not care which tier produced it.
-- [ ] `[deva]` Confidence thresholds per tier and the tier-2 to tier-3 escalation rule. Write the
-      numbers down. They will need tuning against real phrasing.
-- [ ] `[deva]` Router ordering rules. Reminder, todo, and attach verbs all overlap on "add" — fix the
+- [x] `[deva]` Confidence thresholds per tier and the tier-2 to tier-3 escalation rule. Write the
+      numbers down. They will need tuning against real phrasing. *(Tier 3 is deferred this phase; the
+      numbers live in `RouterContracts.kt` and escalate to chat fallback.)*
+- [x] `[deva]` Router ordering rules. Reminder, todo, and attach verbs all overlap on "add" — fix the
       precedence order and test the collisions.
-- [ ] `[deva]` **Network-intent gate.** Web search and mail fetch are the only intents that may leave
+- [x] `[deva]` **Network-intent gate.** Web search and mail fetch are the only intents that may leave
       the device. They route through one chokepoint that checks the per-feature opt-in and writes an
       audit event *before* the request. One gate, not two code paths.
-- [ ] `[deva]` Dispatcher and capability registry. Each capability independently testable behind the
+- [x] `[deva]` Dispatcher and capability registry. Each capability independently testable behind the
       `Capability` interface. Design Spec §5.
 - [ ] `[deva]` Router uncertainty path: ask for clarification rather than execute an ambiguous action.
       Design Spec §38.
 - [ ] `[deva]` Move the chat capability behind the `Capability` interface and dispatch it like
-      everything else. One dispatch path, not two.
+      everything else. One dispatch path, not two. *(Dev B lands this as the final single revertible
+      commit of Phase 2.)*
 - [ ] `[deva]` Persistent memory: explicit "remember this" writes, retrievable across chats.
-- [ ] `[deva]` Router unit tests: reminders, todos, routines, RAG requests, file requests, device
+- [x] `[deva]` Router unit tests: reminders, todos, routines, RAG requests, file requests, device
       commands, web search, mail fetch, and ambiguous input. Design Spec §40.
 - [ ] `[deva]` Settle LiteRT-LM's built-in tool calling against Gemma 4 **before** the router commits to
       a tool path. If it is unreliable, tier 2 plus structured prompting is the fallback.

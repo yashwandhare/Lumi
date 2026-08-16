@@ -22,6 +22,29 @@ in yet — if it is empty, everything is already in the main log.
 ## Unreleased
 
 ### Added
+- [devb] 2026-08-16 — Voice session surface: push-to-talk from the composer mic button, with
+  distinct Listening / Thinking / Speaking states anchored on the mascot, a live transcript
+  that updates as words settle, and one stop button per phase. First mic tap requests the
+  microphone permission inline; a denial shows one plain dialog offering typed input, not a
+  re-ask on every tap. Model download progress shows in the ASR state, so the button is never
+  live-looking and inert.
+- [devb] 2026-08-16 — Sherpa-ONNX streaming recognition engine wired in (`SherpaAsrEngine`,
+  committed `cd23b68`): partial transcripts while speaking, endpoint-silence detection,
+  one-session lock, and the recognition model downloaded and digest-verified through the same
+  store as the generative model. Recognition is audited as on-device.
+- [devb] 2026-08-16 — Network-intent gate (committed `cd7dbe0`): one chokepoint for web search
+  and mail fetch. The gate checks each feature's opt-in — both default off — and writes the
+  audit event *before* any request leaves the device; a refusal is recorded as SKIPPED with
+  plain-language recovery. A third network feature cannot exist without changing the closed
+  `NetworkFeature` enum, so the privacy audit stays enumerable.
+- [devb] 2026-08-16 — Capability dispatcher and registry (committed `cd7dbe0`): every routed
+  intent dispatches through one map keyed by `CapabilityId`, built from DI-bound
+  `Capability` implementations. Unknown routes return an honest failure, duplicate ids fail
+  fast at construction. JVM tests pin the registry dispatch, pre-request gate enforcement,
+  and the unknown-route path (committed `97579a3`).
+- [devb] 2026-08-16 — Network feature settings (committed `cd7dbe0`): per-feature opt-in
+  persisted in the existing `SettingsStore`, plus a kill switch that turns both features off
+  at once.
 - [devb] 2026-08-16 — Router unit tests: normalizer, rules, similarity, and composed-router suites
   (32 tests, plain JVM) covering the "add" collisions, device slots, marker tie-breaks, the
   ambiguity path, the chat fallback, and both degraded-embedder fallbacks. All pass;
@@ -33,6 +56,13 @@ in yet — if it is empty, everything is already in the main log.
   accent-tracked slider used by settings).
 
 ### Fixed
+- [devb] 2026-08-16 — Voice replies to spoken turns are read without skipping: streamed reply
+  fragments append to the TTS queue (`QUEUE_ADD`) and buffer on sentence boundaries; the speak
+  job is never cancelled by the next chunk (v1 bug 2).
+- [devb] 2026-08-16 — Cancel-on-send (v1 bug 1): a typed send while the mic is live cancels the
+  recording loop cleanly instead of leaving it running in the background.
+- [devb] 2026-08-16 — TTS speaks only turns whose origin is `VOICE`; a typed turn's reply is
+  text-only. Both v1 bugs tracked in `decisions_devb.md`.
 - [devb] 2026-08-16 — Tier-1 rule patterns used `Regex.matches`, which anchors at both ends;
   sentences longer than the pattern never matched, so reminders, files, search, mail, and
   device commands silently fell through to chat. Rules now use `containsMatchIn` against their
