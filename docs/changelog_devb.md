@@ -22,6 +22,13 @@ in yet — if it is empty, everything is already in the main log.
 ## Unreleased
 
 ### Added
+- [devb] 2026-08-16 — Whisper base.en (int8) replaces the 20M streaming zipformer as the
+  recognition model — on-device testing showed the old model could not reliably transcribe
+  everyday sentences, and the owner ruled recognition quality cannot be compromised. Download is
+  ~160MB on first voice use (was ~41MB). Latency is preserved by Silero-VAD segmentation: each
+  utterance is recognised the moment a pause closes it, off the recording thread, so the live
+  transcript grows while you speak and the final text lands within roughly one short decode of
+  you stopping.
 - [devb] 2026-08-16 — Chat now dispatches through the capability registry like every other
   capability — one dispatch path for typed, spoken, and widget input alike. Conversation
   persistence and the per-turn audit entry stay with the chat view model because they need the
