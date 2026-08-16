@@ -60,23 +60,3 @@ interface JournalDao {
     @Query("DELETE FROM journal_entries WHERE id = :entryId")
     suspend fun delete(entryId: Long)
 }
-
-@Dao
-interface EmergencyContactDao {
-
-    @Query("SELECT * FROM emergency_contacts ORDER BY ordinal ASC")
-    fun observeAll(): Flow<List<EmergencyContactEntity>>
-
-    /** SOS reads this synchronously at trigger time; it must stay a single cheap query. */
-    @Query("SELECT * FROM emergency_contacts ORDER BY ordinal ASC")
-    suspend fun all(): List<EmergencyContactEntity>
-
-    @Insert
-    suspend fun insert(contact: EmergencyContactEntity): Long
-
-    @Update
-    suspend fun update(contact: EmergencyContactEntity)
-
-    @Delete
-    suspend fun delete(contact: EmergencyContactEntity)
-}

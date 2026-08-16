@@ -5,7 +5,6 @@ import androidx.room.Room
 import com.lumi.data.local.AuditDao
 import com.lumi.data.local.ChatDao
 import com.lumi.data.local.DocumentDao
-import com.lumi.data.local.EmergencyContactDao
 import com.lumi.data.local.JournalDao
 import com.lumi.data.local.MemoryDao
 import com.lumi.data.local.RoutineDao
@@ -32,7 +31,9 @@ object DatabaseModule {
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): LumiDatabase =
-        Room.databaseBuilder(context, LumiDatabase::class.java, LumiDatabase.NAME).build()
+        Room.databaseBuilder(context, LumiDatabase::class.java, LumiDatabase.NAME)
+            .addMigrations(LumiDatabase.MIGRATION_1_2)
+            .build()
 
     @Provides
     fun provideChatDao(database: LumiDatabase): ChatDao = database.chatDao()
@@ -52,7 +53,4 @@ object DatabaseModule {
     @Provides
     fun provideAuditDao(database: LumiDatabase): AuditDao = database.auditDao()
 
-    @Provides
-    fun provideEmergencyContactDao(database: LumiDatabase): EmergencyContactDao =
-        database.emergencyContactDao()
 }

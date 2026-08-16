@@ -1,7 +1,9 @@
 package com.lumi.di
 
+import com.lumi.core.ai.Embedder
 import com.lumi.core.ai.ModelHarness
 import com.lumi.data.ai.LiteRtModelHarness
+import com.lumi.data.ai.MediaPipeEmbedder
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -22,4 +24,12 @@ abstract class AiModule {
     @Binds
     @Singleton
     abstract fun bindModelHarness(implementation: LiteRtModelHarness): ModelHarness
+
+    /**
+     * One embedder for the whole app, for the same reason as the harness: it holds a loaded native
+     * model, and a second instance would mean a second 180MB load.
+     */
+    @Binds
+    @Singleton
+    abstract fun bindEmbedder(implementation: MediaPipeEmbedder): Embedder
 }

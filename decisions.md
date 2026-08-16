@@ -80,19 +80,11 @@ Anything with real-world consequence if wrong — financial data, identity data,
 outbound messages — shows the user what it is about to do and requires explicit confirmation. No
 "smart enough to skip it" carve-out.
 
-### [deva] Carried — SOS bare-keyword tier skips confirmation, deliberately
-
-A bare "sos" typed or spoken fires the flashlight signal, siren, and emergency SMS with no confirmation
-dialog. This is an explicit, knowing exception to the confirmation rule above.
-
-**Why:** the bare keyword *is* the user's deliberate confirmation. A dialog in a flood or on an unsafe
-street adds friction exactly when seconds matter.
-
-**Guard rails that replace the dialog:** the entire normalized input must be an SOS phrase, so ordinary
-chat can never match; word-boundary matching means "society" and "so sorry" are impossible matches; the
-keyword embedded in longer text gets a cancellable countdown instead of instant fire; a model-initiated
-activation also gets a countdown; and a full-screen stop control, a notification stop action, and a
-spoken cancel all end it immediately.
+**This rule now has no exceptions.** v1 carved one out for SOS's bare-keyword tier, on the grounds that
+typing "sos" in an emergency *is* the confirmation and a dialog costs seconds that matter. SOS is cut from
+v2 (brief §7), so the exception applies to nothing and is removed rather than left as a precedent someone
+could reach for later. The strategy brief independently reinforces the universal form of the rule in §4.5
+and §4.6: propose an action, always confirm before anything is written or sent.
 
 ### [deva] Carried — Journaling is pattern surfacing, not companionship
 
@@ -688,3 +680,177 @@ Headroom is now 1.1GB, and the out-of-space message states the real total rather
 and left ~600MB of generated caches orphaned with nothing that would ever remove them — it now deletes
 the directory. And `bytesOnDisk()` reports weights plus caches together, shown in Settings, because a
 user auditing why the app holds 3.4GB deserves the real number rather than the one they agreed to.
+
+---
+
+# Part 5 — The strategy brief
+
+`Lumi_Strategy_Brief.docx.PDF` (Aug 2026) repositions the product and reverses three decisions recorded
+above. Where it disagrees with an earlier entry, it wins, and the entry below says so explicitly rather
+than leaving two contradictory records in one file.
+
+The reframing itself: Lumi is a **voice-first, privacy-first automation layer for working professionals
+who cannot legally or practically send data to cloud AI** — doctors, lawyers, business professionals —
+with students secondary. Judging weights are Gemma Integration 30%, Innovation & Impact 30%,
+Functionality 20%, Presentation 20%. Two thirds of the score is *why this needs Gemma on-device*, not
+how many features exist.
+
+### [deva] 2026-08-15 — Reversed: Sherpa-ONNX moves into the critical path
+
+The entry above defers Sherpa to Phase 8 and ships native `SpeechRecognizer` for the hackathon, on the
+grounds that v1 built the offline stack and reverted it for latency and glitching. **The brief reverses
+this, and its reasoning is better than mine.**
+
+Sherpa performs 100% of audio→text as streaming ASR during a meeting, which means **Gemma never touches
+raw audio**. That turns Gemma's 30-second audio-clip cap from a blocking constraint into a non-issue —
+it is designed around rather than fought. My deferral optimised for avoiding v1's latency bug and missed
+that the architecture removes the constraint entirely.
+
+**What I got right and keep:** native ASR was the correct call for *voice chat*, where a 2-second turn is
+the whole interaction. It is the wrong call for a 45-60 minute continuous session, which is what call
+mode needs — native recognition is not built for that duration and would have been throwaway scaffolding.
+
+**Sequencing, on the owner's call:** Sherpa directly, tested on the real device on day one rather than at
+the end. v1's revert is a real warning, and the mitigation is measuring early, not deferring.
+
+**The three things that must differ from v1's attempt** still stand and are now urgent rather than
+theoretical: streaming partial results instead of batch-after-stop; a TTS queue that appends instead of
+cancelling per chunk; model size and thread count tuned to the device before integration.
+
+### [deva] 2026-08-15 — Call mode captures the microphone, not phone-call audio
+
+The brief says Lumi "joins/listens during a call". Confirmed with the owner: **device microphone** — in
+person, or a call on speakerphone.
+
+**Why this had to be asked rather than assumed.** Android has blocked third-party apps from capturing
+remote-party phone audio since Android 10; only the default dialer holding a system-signature permission
+can do it, and the Accessibility-service loophole was closed as well. Had the answer been "both sides of
+a real phone call", §4.1 would not have been buildable as written and the feature would have needed
+reframing before any code was written. Microphone capture needs only `RECORD_AUDIO` and works.
+
+`MediaProjection` audio capture remains available if device-playback capture (Meet, Zoom, Teams) is
+wanted later. Its persistent system recording notification would arguably *help* the consent story the
+brief raises against the recording wearables in §3.1.
+
+### [deva] 2026-08-15 — Native function-calling is now required, not evaluated
+
+An entry above says to test LiteRT-LM's built-in tool calling against Gemma 4 and fall back to a
+hand-rolled JSON registry as v1 did, treating the two as comparable options. **The brief makes the native
+path the requirement**, and supplies the number I did not have: Gemma 3 scored 6.6% on the τ²-bench
+agentic tool-use benchmark; Gemma 4 scores 86.4%, through a dedicated architecture of six special tokens
+rather than prompt-engineered JSON extraction.
+
+That gap is the concrete, demoable answer to "deeper Gemma integration" — 30% of the score. A
+prompt-hacked JSON parser would work and would be worth nothing to a judge.
+
+The hand-rolled registry survives only as a genuine last resort if the native path proves broken on
+device, and choosing it would need a new entry here explaining what failed.
+
+### [deva] 2026-08-15 — SOS is cut
+
+Per brief §7. It does not fit the working-professional privacy/automation positioning and would split the
+pitch's identity in a three-minute demo.
+
+**Consequences, executed rather than noted:** the Phase 5 SOS section leaves `todo.md`; the
+`EmergencyContact` entity, DAO, and table leave the Room schema; and the SOS carve-out is removed from the
+carried-forward v1 decision on confirmation-gating, because that exception no longer applies to anything
+that exists. The rule it excepted — no autonomous action without confirmation — stands and is now
+universal, which the brief independently reinforces in §4.5 and §4.6.
+
+Nothing is lost but plan: SOS was never built in v2.
+
+### [deva] 2026-08-15 — Do not fine-tune Gemma 4 multimodal before the demo
+
+Brief §5.3, adopted as a hard constraint. The official Gemma 4 vision-tower export path
+(`litert_torch/model_ext/gemma4/vision_exportable.py`) is a documented stub raising
+`NotImplementedError`, and a July 2026 Qualcomm × Google LiteRT team found that even a cleanly fine-tuned,
+cleanly exported Gemma 4 E2B failed at *inference* time with an undocumented Jinja chat-template error.
+
+**Why that specific failure mode matters:** it does not appear when the model loads. It appears when
+inference runs — mid-demo. Use Gemma 4 as shipped, including its built-in vision and audio.
+
+This is also why the multimodality instrumented test is worth keeping rather than deleting now that the
+brief asserts §5.2's native multimodal architecture: the test checks the *as-shipped* build on the actual
+device, which is precisely what this decision depends on.
+
+### [deva] 2026-08-15 — Correction: EmbeddingGemma is gated on Hugging Face, not on Google's CDN
+
+An entry above rules EmbeddingGemma out as gated, alongside FunctionGemma. **Half right, and the half
+that was wrong blocked the better embedder for no reason.**
+
+Hugging Face does gate it — `litert-community/embeddinggemma-300m` requires accepting conditions, and
+Google's own Cloud documentation says an `HF_TOKEN` is needed. But MediaPipe serves the `.task` file from
+`storage.googleapis.com` with no gate at all: verified HTTP 200, no `Authorization` header, 183,816,181
+bytes, and HTTP 206 on a range request so it resumes like the main model does. The MD5 in the CDN's own
+`x-goog-hash` header matched the downloaded bytes, which is what makes the pinned SHA-256 trustworthy.
+
+The no-token rule is satisfied, so EmbeddingGemma is now the embedder. FunctionGemma remains ruled out —
+its gating is not worked around by this, and the native tool-calling decision above means Gemma 4 does
+that job anyway.
+
+**Why not `all-MiniLM-L6-v2` through ONNX Runtime**, the obvious 23MB alternative: MediaPipe tokenises
+internally, while MiniLM would mean hand-writing a WordPiece tokeniser, mean pooling, and L2
+normalisation in Kotlin. A subtly wrong tokeniser does not crash — it produces plausible embeddings that
+retrieve slightly badly, which is close to undiagnosable. Not a risk worth 150MB with six days left.
+
+**The cost, stated plainly:** 180MB fetched separately, and Google measures 200ms per embed on an S26
+Ultra, so expect two to three times that here. `Embedder` is an interface precisely so Universal Sentence
+Encoder — 6MB, 10ms, weaker retrieval — is one class away if that proves unacceptable.
+
+### [deva] 2026-08-16 — Measured: this Gemma 4 build takes audio, not images
+
+PRD §5's top risk, answered on a Samsung SM-M356B by instrumented test rather than by assumption. The
+result is split, and the half that fails is the half the brief leans on less.
+
+**Audio: accepted.** `Content.AudioBytes` with `audioBackend = Backend.CPU()` produced a reply. Note the
+backend — CPU, matching v1's "must be CPU" comment. This is a second, independent confirmation of the
+finding that a GPU audio backend is what broke engine creation.
+
+**Image: rejected at inference.** `Content.ImageBytes` with `visionBackend = Backend.GPU()` loads the
+engine fine and then fails inside `nativeSendMessage`:
+
+```
+INTERNAL: ERROR: [llm_litert_compiled_model_executor.cc:756] Failed to invoke the compiled model
+```
+
+**This is exactly the failure shape brief §5.3 warns about** — not a load error, an *inference* error. §5.3
+describes a Qualcomm × Google team hitting an undocumented Jinja chat-template failure at inference on a
+cleanly exported Gemma 4 E2B, and calls it "the worst possible time to discover this: mid-demo". The brief
+predicted the class of bug; this is a measurement of it on our own device and artefact.
+
+**Consequences:**
+
+- **Do not demo image input.** Not as a stretch, not as a "might work". It fails at the moment of use.
+- §5.2's claim that vision, audio, and text run through one decoder-only transformer stays true of the
+  architecture and is **not** currently true of this build's usable surface. The pitch may say Gemma 4 is
+  natively multimodal; it must not show Lumi answering questions about an image.
+- Vision remains worth retesting if the artefact is re-pushed upstream, since this is a build property
+  rather than a device limitation. Retest by running `GemmaMultimodalityTest`, which exists for this.
+- Audio being accepted does **not** change the ASR decision. Sherpa still does 100% of speech-to-text for
+  call mode, because Gemma's 30-second clip cap makes it unusable for a 45-60 minute meeting regardless of
+  whether it accepts audio at all.
+
+The test asserts nothing about which way the answer goes — it records what the runtime does and fails only
+on an unexpected *kind* of error. That is why it could produce this finding instead of a red build.
+
+### [deva] 2026-08-16 — Two test-infrastructure gaps found while proving the migration
+
+Both worth recording because each produced a failure that looked like a different bug.
+
+**Exported schemas were not on the androidTest classpath.** `MigrationTestHelper` reads them from
+androidTest *assets*, not from `app/schemas/`, so the migration test failed with
+`FileNotFoundException: Missing file: com.lumi.data.local.LumiDatabase/1.json` — which reads as "the schema
+was never exported" when in fact it was committed all along. Fixed by pointing the androidTest asset
+source set at `$projectDir/schemas`.
+
+**kotlinx-serialization was pinned a minor version too low.** Room 2.8.4's migration bundle is compiled
+against 1.8.1; `lifecycle-viewmodel-savedstate` pulls 1.7.3, and AGP's consistent resolution pins the
+androidTest classpath to whatever the main classpath resolved. The mismatch is invisible at compile time
+and surfaces only when a schema is deserialised, as `AbstractMethodError` on a generated serializer — which
+reads as a broken migration. Fixed with a version constraint rather than a dependency, so nothing new is
+added to the app.
+
+**Why this matters beyond one test:** the no-destructive-migration rule is only worth stating if migrations
+are actually executed against real prior-version data. Until now nothing verified that, so the rule was a
+comment. It is now enforced by a test that creates a v1 database, migrates it, and asserts the surviving
+tables still hold their rows.

@@ -38,17 +38,3 @@ data class JournalEntryEntity(
     val moodTag: String? = null,
     val createdAtMs: Long,
 )
-
-/**
- * Someone SOS sends a location message to.
- *
- * Populated only through SOS setup, where the SMS and location permissions are requested.
- * Never harvested from the device contact list without the user choosing each entry.
- */
-@Entity(tableName = "emergency_contacts", indices = [Index("ordinal")])
-data class EmergencyContactEntity(
-    @PrimaryKey(autoGenerate = true) val id: Long = 0,
-    val name: String,
-    val phoneNumber: String,
-    val ordinal: Int,
-)

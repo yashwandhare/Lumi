@@ -3,7 +3,7 @@ package com.lumi.data.ai
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
-import com.lumi.core.ai.GemmaModel
+import com.lumi.core.ai.ManagedModel
 import com.lumi.di.IoDispatcher
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineDispatcher
@@ -47,28 +47,30 @@ class ModelDownloader @Inject constructor(
 ) {
 
     /**
+     * @param model which artefact to fetch — the generative model or the embedder.
      * @param onProgress called with bytes-on-disk, the total, and a smoothed recent rate in bytes
-     *   per second — null until there is enough of a sample to report honestly. Total is
-     *   [GemmaModel.SIZE_BYTES] rather than whatever the server reports, so a truncated response
-     *   cannot make the bar look finished.
+     *   per second — null until there is enough of a sample to report honestly. Total is the pinned
+     *   size rather than whatever the server reports, so a truncated response cannot make the bar look
+     *   finished.
      */
     suspend fun download(
+        model: ManagedModel,
         onProgress: (downloaded: Long, total: Long, bytesPerSecond: Long?) -> Unit,
     ): DownloadOutcome =
         withContext(io) {
-            if (store.isReady()) return@withContext DownloadOutcome.Success
+            if (store.isReady(model)) return@withContext DownloadOutcome.Success
             if (!hasNetwork()) {
                 return@withContext DownloadOutcome.Retryable("No internet connection.")
             }
-            if (!hasRoomForModel()) {
+            if (!hasRoomFor(model)) {
                 return@withContext DownloadOutcome.Permanent(
-                    "Not enough free space. Lumi needs about 3.5 GB — ${GemmaModel.HUMAN_SIZE} for the " +
-                        "model and roughly a gigabyte more that it builds on first use."
+                    "Not enough free space. Lumi needs about 3.7 GB in total — the model, the embedder, " +
+                        "and roughly a gigabyte more that it builds on first use."
                 )
             }
 
             try {
-                fetch(onProgress)
+                fetch(model, onProgress)
             } catch (io: IOException) {
                 // The partial file is left in place on purpose: the next attempt resumes from it.
                 DownloadOutcome.Retryable(io.message ?: "The download was interrupted.")
@@ -76,16 +78,17 @@ class ModelDownloader @Inject constructor(
         }
 
     private suspend fun fetch(
+        model: ManagedModel,
         onProgress: (Long, Long, Long?) -> Unit,
     ): DownloadOutcome {
-        var alreadyHave = store.partialBytes()
-        if (alreadyHave > GemmaModel.SIZE_BYTES) {
+        var alreadyHave = store.partialBytes(model)
+        if (alreadyHave > model.sizeBytes) {
             // Longer than the real file means it is not the real file. Start clean.
-            store.partialFile.delete()
+            store.partialFileFor(model).delete()
             alreadyHave = 0L
         }
 
-        val connection = (URL(GemmaModel.URL).openConnection() as HttpURLConnection).apply {
+        val connection = (URL(model.url).openConnection() as HttpURLConnection).apply {
             connectTimeout = CONNECT_TIMEOUT_MS
             readTimeout = READ_TIMEOUT_MS
             instanceFollowRedirects = true
@@ -99,7 +102,7 @@ class ModelDownloader @Inject constructor(
                     // The server ignored our Range. Whatever is on disk cannot be appended to this
                     // stream, so discard it rather than concatenating two overlapping copies.
                     if (alreadyHave > 0) {
-                        store.partialFile.delete()
+                        store.partialFileFor(model).delete()
                         alreadyHave = 0L
                     }
                 }
@@ -116,7 +119,7 @@ class ModelDownloader @Inject constructor(
                 else -> return DownloadOutcome.Retryable("The server replied $code.")
             }
 
-            store.partialFile.outputStream().channel.use { channel ->
+            store.partialFileFor(model).outputStream().channel.use { channel ->
                 channel.position(alreadyHave)
                 connection.inputStream.use { input ->
                     val buffer = ByteArray(BUFFER_BYTES)
@@ -132,20 +135,20 @@ class ModelDownloader @Inject constructor(
                         // Throttled: a callback per 64KB chunk would be tens of thousands of UI updates.
                         if (written - lastReported >= PROGRESS_STEP_BYTES) {
                             lastReported = written
-                            onProgress(written, GemmaModel.SIZE_BYTES, rate.sample(written))
+                            onProgress(written, model.sizeBytes, rate.sample(written))
                         }
                     }
-                    onProgress(written, GemmaModel.SIZE_BYTES, rate.sample(written))
+                    onProgress(written, model.sizeBytes, rate.sample(written))
                 }
             }
         } finally {
             connection.disconnect()
         }
 
-        if (store.partialBytes() != GemmaModel.SIZE_BYTES) {
+        if (store.partialBytes(model) != model.sizeBytes) {
             return DownloadOutcome.Retryable("The download ended early.")
         }
-        return if (store.verifyAndCommit()) {
+        return if (store.verifyAndCommit(model)) {
             DownloadOutcome.Success
         } else {
             DownloadOutcome.Permanent(
@@ -162,8 +165,8 @@ class ModelDownloader @Inject constructor(
     }
 
     /** Checked before starting, so the user is told up front instead of at 94%. */
-    private fun hasRoomForModel(): Boolean {
-        val needed = GemmaModel.SIZE_BYTES - store.partialBytes() + HEADROOM_BYTES
+    private fun hasRoomFor(model: ManagedModel): Boolean {
+        val needed = model.sizeBytes - store.partialBytes(model) + HEADROOM_BYTES
         return context.filesDir.usableSpace > needed
     }
 

@@ -51,6 +51,15 @@ android {
         buildConfig = true
     }
 
+    // Room's MigrationTestHelper loads the exported schema JSON from the androidTest assets, not from
+    // app/schemas/. Without this the migration test cannot see 1.json and fails with a
+    // FileNotFoundException that looks like a broken migration rather than a missing wiring.
+    sourceSets {
+        getByName("androidTest") {
+            assets.srcDirs("$projectDir/schemas")
+        }
+    }
+
     testOptions {
         // Pure-JVM tests that touch android.util.Log get no-op defaults instead of
         // "not mocked" failures.
@@ -66,6 +75,16 @@ ksp {
 }
 
 dependencies {
+    constraints {
+        // Room 2.8.4's migration bundle is compiled against kotlinx-serialization 1.8.1, but
+        // lifecycle-viewmodel-savedstate drags in 1.7.3 and AGP's consistent resolution pins the
+        // androidTest classpath to whatever the main one resolved. The mismatch is invisible at compile
+        // time and surfaces only when MigrationTestHelper deserialises a schema, as an
+        // AbstractMethodError on a generated serializer — which reads as a broken migration rather than
+        // a dependency conflict. A constraint raises the version without adding the dependency.
+        implementation("org.jetbrains.kotlinx:kotlinx-serialization-core:1.8.1")
+    }
+
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.runtime.compose)
@@ -83,6 +102,8 @@ dependencies {
 
     implementation(libs.richtext.commonmark)
     implementation(libs.richtext.ui.material3)
+
+    implementation(libs.mediapipe.tasks.text)
 
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)

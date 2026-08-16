@@ -18,9 +18,9 @@ workRuntime = "2.10.0"
 # Markdown rendering for model replies. Same library v1 shipped.
 richtext = "1.0.0-alpha02"
 
-# On-device AI. Wired in Phase 1 (model harness) and Phase 4 (embeddings).
+# On-device AI. litertlm runs the generative model; tasks-text embeds for router tier 2 and RAG.
 litertlm = "0.11.0"
-mediapipeTasksText = "0.10.29"
+mediapipeTasksText = "0.10.35"
 
 # Test
 junit = "4.13.2"
@@ -68,6 +68,8 @@ hilt-compiler = { group = "com.google.dagger", name = "hilt-android-compiler", v
 hilt-navigation-compose = { group = "androidx.hilt", name = "hilt-navigation-compose", version.ref = "hiltNavigation" }
 
 litertlm = { group = "com.google.ai.edge.litertlm", name = "litertlm-android", version.ref = "litertlm" }
+# TextEmbedder. Separate from MediaPipe's LLM Inference API, which is maintenance-only — this task is
+# actively documented and handles tokenisation, including for models without it in-graph.
 mediapipe-tasks-text = { group = "com.google.mediapipe", name = "tasks-text", version.ref = "mediapipeTasksText" }
 
 junit = { group = "junit", name = "junit", version.ref = "junit" }

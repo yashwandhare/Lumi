@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.lumi.core.ai.ModelHarness
 import com.lumi.core.ai.ModelState
+import com.lumi.core.ai.GemmaModel
+import com.lumi.core.ai.managed
 import com.lumi.data.ai.ModelStore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
@@ -39,7 +41,7 @@ class ModelSetupViewModel @Inject constructor(
     private var work: Job? = null
 
     init {
-        if (store.isReady()) start() else _awaitingConsent.value = true
+        if (store.isReady(GemmaModel.managed)) start() else _awaitingConsent.value = true
     }
 
     /** Idempotent: [ModelHarness.prepare] joins existing work rather than starting a second load. */

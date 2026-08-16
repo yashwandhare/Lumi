@@ -18,6 +18,8 @@ import com.lumi.core.ai.ModelHarness
 import com.lumi.core.ai.ModelState
 import com.lumi.core.ai.Sampling
 import com.lumi.core.ai.SessionId
+import com.lumi.core.ai.GemmaModel
+import com.lumi.core.ai.managed
 import com.lumi.core.settings.ModelBackend
 import com.lumi.core.settings.ModelSettings
 import com.lumi.data.settings.SettingsStore
@@ -66,6 +68,9 @@ class LiteRtModelHarness @Inject constructor(
     private val _lastMetrics = MutableStateFlow<GenerationMetrics?>(null)
     override val lastMetrics: StateFlow<GenerationMetrics?> = _lastMetrics.asStateFlow()
 
+    /** The artefact this harness owns. The embedder has its own. */
+    private val gemma = GemmaModel.managed
+
     private val lock = Mutex()
     private var engine: Engine? = null
     private val conversations = mutableMapOf<String, Conversation>()
@@ -84,12 +89,12 @@ class LiteRtModelHarness @Inject constructor(
                 return
             }
 
-            if (!store.isReady()) {
+            if (!store.isReady(gemma)) {
                 _state.value = ModelState.Downloading(
-                    fraction = fractionOf(store.partialBytes()),
-                    downloadedBytes = store.partialBytes(),
+                    fraction = fractionOf(store.partialBytes(gemma)),
+                    downloadedBytes = store.partialBytes(gemma),
                 )
-                when (val outcome = downloader.download { downloaded, _, bytesPerSecond ->
+                when (val outcome = downloader.download(gemma) { downloaded, _, bytesPerSecond ->
                     _state.value = ModelState.Downloading(
                         fraction = fractionOf(downloaded),
                         downloadedBytes = downloaded,
@@ -152,7 +157,7 @@ class LiteRtModelHarness @Inject constructor(
         // Ask the model file what it supports instead of assuming. v1 did this and it matters: setting
         // the flag on a build without a draft model is one of the ways engine creation fails.
         val speculativeSupported = runCatching {
-            com.google.ai.edge.litertlm.Capabilities(store.modelFile.absolutePath)
+            com.google.ai.edge.litertlm.Capabilities(store.fileFor(gemma).absolutePath)
                 .use { it.hasSpeculativeDecodingSupport() }
         }.onFailure { Log.w(TAG, "Could not read model capabilities", it) }
             .getOrDefault(false)
@@ -165,7 +170,7 @@ class LiteRtModelHarness @Inject constructor(
                 val startedAtMs = System.currentTimeMillis()
                 val created = Engine(
                     EngineConfig(
-                        modelPath = store.modelFile.absolutePath,
+                        modelPath = store.fileFor(gemma).absolutePath,
                         backend = attempt.backend(),
                         // Both null until the multimodal path actually exists.
                         //
