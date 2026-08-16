@@ -44,22 +44,22 @@ internal object RulesTier {
 
     private val rules: List<Rule> = listOf(
         Rule(CapabilityId.FILES) { normalized ->
-            FILES.firstOrNull { it.matches(normalized) }?.pattern
+            FILES.firstOrNull { it.containsMatchIn(normalized) }?.pattern
         },
         Rule(CapabilityId.SEARCH) { normalized ->
-            SEARCH.firstOrNull { it.matches(normalized) }?.pattern
+            SEARCH.firstOrNull { it.containsMatchIn(normalized) }?.pattern
         },
         Rule(CapabilityId.MAIL) { normalized ->
-            MAIL.firstOrNull { it.matches(normalized) }?.pattern
+            MAIL.firstOrNull { it.containsMatchIn(normalized) }?.pattern
         },
         Rule(CapabilityId.TOOLS, kind = KIND_REMINDER) { normalized ->
-            REMINDER_RULES.firstOrNull { it.matches(normalized) }?.pattern
+            REMINDER_RULES.firstOrNull { it.containsMatchIn(normalized) }?.pattern
         },
         Rule(CapabilityId.TOOLS, kind = KIND_TODO) { normalized ->
-            TODO_RULES.firstOrNull { it.matches(normalized) }?.pattern
+            TODO_RULES.firstOrNull { it.containsMatchIn(normalized) }?.pattern
         },
         Rule(CapabilityId.ROUTINE) { normalized ->
-            ROUTINE.firstOrNull { it.matches(normalized) }?.pattern
+            ROUTINE.firstOrNull { it.containsMatchIn(normalized) }?.pattern
         },
         Rule(CapabilityId.DEVICE) { normalized -> deviceRule(normalized)?.marker },
     )
@@ -97,14 +97,14 @@ internal object RulesTier {
      * consumes it, stripping spaces and punctuation before comparing.
      */
     private fun deviceRule(normalized: String): DeviceCommand? = when {
-        SILENCE_ON.any { it.matches(normalized) } -> DeviceCommand("silent_mode", "on")
-        SILENCE_OFF.any { it.matches(normalized) } -> DeviceCommand("silent_mode", "off")
-        WIFI_ON.any { it.matches(normalized) } -> DeviceCommand("wifi", "on")
-        WIFI_OFF.any { it.matches(normalized) } -> DeviceCommand("wifi", "off")
-        BLUETOOTH_ON.any { it.matches(normalized) } -> DeviceCommand("bluetooth", "on")
-        BLUETOOTH_OFF.any { it.matches(normalized) } -> DeviceCommand("bluetooth", "off")
-        FLASHLIGHT_ON.any { it.matches(normalized) } -> DeviceCommand("flashlight", "on")
-        FLASHLIGHT_OFF.any { it.matches(normalized) } -> DeviceCommand("flashlight", "off")
+        SILENCE_ON.any { it.containsMatchIn(normalized) } -> DeviceCommand("silent_mode", "on")
+        SILENCE_OFF.any { it.containsMatchIn(normalized) } -> DeviceCommand("silent_mode", "off")
+        WIFI_ON.any { it.containsMatchIn(normalized) } -> DeviceCommand("wifi", "on")
+        WIFI_OFF.any { it.containsMatchIn(normalized) } -> DeviceCommand("wifi", "off")
+        BLUETOOTH_ON.any { it.containsMatchIn(normalized) } -> DeviceCommand("bluetooth", "on")
+        BLUETOOTH_OFF.any { it.containsMatchIn(normalized) } -> DeviceCommand("bluetooth", "off")
+        FLASHLIGHT_ON.any { it.containsMatchIn(normalized) } -> DeviceCommand("flashlight", "on")
+        FLASHLIGHT_OFF.any { it.containsMatchIn(normalized) } -> DeviceCommand("flashlight", "off")
         else -> OPEN_APP.firstNotNullOfOrNull { it.matchEntire(normalized) }
             ?.groups
             ?.get("app")

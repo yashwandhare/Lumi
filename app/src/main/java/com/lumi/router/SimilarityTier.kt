@@ -49,16 +49,18 @@ internal class SimilarityTier(
         val runnerUp = ranked.getOrNull(1)
 
         // A marker word in the utterance settles the "add" collisions the brief calls out:
-        // "add milk to my list" scores close to reminder phrases and attach phrases alike,
-        // and the word the user already said must not be asked back at them. The marker
-        // group wins outright when it clears the action threshold; a weak marker cannot drag
-        // an unrelated phrase over the line, only settle a genuine near-tie above it.
+        // "add milk to my list" scores close to reminder phrases and todo phrases alike, and
+        // the word the user already said must not be asked back at them. The marker group wins
+        // when it clears the action threshold *and* is within the ambiguity gap of the best
+        // score — it resolves a near-tie in its favour. A marker cannot override a clearly
+        // dominant, unrelated match, and a weak marker cannot drag anything over the line.
         val markerGroup = IntentPhrases.markers.entries
             .firstOrNull { it.value.containsMatchIn(normalized) }
             ?.key
         if (markerGroup != null) {
             val markerScore = scores[markerGroup] ?: 0f
-            if (markerScore >= ROUTE_THRESHOLD) {
+            val bestScore = ranked.first().value
+            if (markerScore >= ROUTE_THRESHOLD && bestScore - markerScore < AMBIGUITY_GAP) {
                 return TierTwoAnswer(decisionFor(markerGroup, rawText, markerScore), null)
             }
         }
