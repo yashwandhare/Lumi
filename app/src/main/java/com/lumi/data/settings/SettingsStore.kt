@@ -2,9 +2,12 @@ package com.lumi.data.settings
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.lumi.core.network.NetworkFeature
+import com.lumi.core.network.NetworkToggles
+import com.lumi.core.settings.LumiPersona
 import com.lumi.core.settings.ModelBackend
 import com.lumi.core.settings.ModelSettings
-import com.lumi.core.settings.LumiPersona
+import com.lumi.core.settings.NetworkSettings
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -27,7 +30,7 @@ import javax.inject.Singleton
 @Singleton
 class SettingsStore @Inject constructor(
     @ApplicationContext context: Context,
-) {
+) : NetworkToggles {
 
     private val prefs: SharedPreferences =
         context.getSharedPreferences(NAME, Context.MODE_PRIVATE)
@@ -41,6 +44,23 @@ class SettingsStore @Inject constructor(
      */
     private val _darkTheme = MutableStateFlow(readTheme())
     val darkTheme: StateFlow<Boolean?> = _darkTheme.asStateFlow()
+
+    private val _network = MutableStateFlow(readNetwork())
+    val network: StateFlow<NetworkSettings> = _network.asStateFlow()
+
+    /** The gate's read path. The gate decides from this at request time, never from a cache. */
+    override fun isEnabled(feature: NetworkFeature): Boolean = when (feature) {
+        NetworkFeature.WEB_SEARCH -> _network.value.webSearch
+        NetworkFeature.GMAIL -> _network.value.gmail
+    }
+
+    fun setWebSearch(enabled: Boolean) = updateNetwork { copy(webSearch = enabled) }
+
+    fun setGmail(enabled: Boolean) = updateNetwork { copy(gmail = enabled) }
+
+    /** The one kill switch the settings panel exposes: off means nothing reaches the network. */
+    fun setAllNetworkFeatures(enabled: Boolean) =
+        updateNetwork { copy(webSearch = enabled, gmail = enabled) }
 
     fun setBackend(backend: ModelBackend) = update { copy(backend = backend) }
 
@@ -88,6 +108,15 @@ class SettingsStore @Inject constructor(
         write(_model.value.transform())
     }
 
+    private inline fun updateNetwork(transform: NetworkSettings.() -> NetworkSettings) {
+        val settings = _network.value.transform()
+        prefs.edit()
+            .putBoolean(KEY_WEB_SEARCH, settings.webSearch)
+            .putBoolean(KEY_GMAIL, settings.gmail)
+            .apply()
+        _network.value = settings
+    }
+
     private fun write(settings: ModelSettings) {
         prefs.edit()
             .putString(KEY_BACKEND, settings.backend.name)
@@ -121,6 +150,12 @@ class SettingsStore @Inject constructor(
     private fun readTheme(): Boolean? =
         prefs.getInt(KEY_THEME, THEME_FOLLOW_SYSTEM).takeIf { it != THEME_FOLLOW_SYSTEM }?.let { it == 1 }
 
+    private fun readNetwork(): NetworkSettings =
+        NetworkSettings(
+            webSearch = prefs.getBoolean(KEY_WEB_SEARCH, false),
+            gmail = prefs.getBoolean(KEY_GMAIL, false),
+        )
+
     private companion object {
         /** The name MainActivity already used, so an existing theme choice is not lost. */
         const val NAME = "lumi_settings"
@@ -134,6 +169,8 @@ class SettingsStore @Inject constructor(
         const val KEY_SYSTEM_PROMPT = "model_system_prompt"
         const val KEY_SHOW_METRICS = "show_metrics"
         const val KEY_LIVE_MASCOT = "live_mascot"
+        const val KEY_WEB_SEARCH = "network_web_search"
+        const val KEY_GMAIL = "network_gmail"
 
         const val THEME_FOLLOW_SYSTEM = -1
     }
