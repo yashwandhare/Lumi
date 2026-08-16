@@ -201,7 +201,16 @@ class SherpaAsrEngine @Inject constructor(
                 } else {
                     stream.acceptWaveform(frames, AsrModels.SAMPLE_RATE)
                 }
-                recognizer!!.decode(stream)
+                // **`decode` only when `isReady` says so, and loop while it keeps saying so.**
+                // The feature extractor needs a full window before a decode can run; calling
+                // decode on a short buffer aborts the process inside the native layer
+                // ("0 + 39 > 19" from features.cc), which no Kotlin catch can intercept. One
+                // buffer can also hold enough audio for several decode steps, so this is a
+                // while, not an if — an `if` would let the backlog grow and the transcript
+                // fall progressively further behind the speaker.
+                while (recognizer!!.isReady(stream)) {
+                    recognizer!!.decode(stream)
+                }
 
                 val partial = recognizer!!.getResult(stream).text
                 if (partial != lastPartial) {
@@ -211,8 +220,12 @@ class SherpaAsrEngine @Inject constructor(
             }
 
             if (read >= 0 && recognizer!!.isEndpoint(stream)) {
+                // Drain whatever is left before finishing, or the tail of the last word is
+                // dropped — the words nearest the silence are the ones a user notices missing.
                 stream.inputFinished()
-                recognizer!!.decode(stream)
+                while (recognizer!!.isReady(stream)) {
+                    recognizer!!.decode(stream)
+                }
                 break
             }
         }
@@ -277,9 +290,12 @@ class SherpaAsrEngine @Inject constructor(
             this.modelConfig = modelConfig
             enableEndpoint = true
         }
-        // Absolute paths go straight to the runtime; the asset manager is still required by
-        // the constructor but unused once every model file lives outside the assets.
-        return OnlineRecognizer(context.assets, config)
+        // **The asset manager must be null.** sherpa branches on it: a non-null manager means
+        // "these paths are asset names", so the absolute paths above are looked up inside the APK,
+        // fail, and the native layer calls abort() — a process kill no Kotlin catch can intercept.
+        // Its own log says so ("set assetManager to null when you load model files from the SD
+        // card"). Every model file here is downloaded into filesDir, so null is the correct value.
+        return OnlineRecognizer(assetManager = null, config = config)
     }
 
     /** All four model files, one combined progress number for one progress bar. */
