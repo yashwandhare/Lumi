@@ -24,6 +24,13 @@ data class StructuredIntent(
         const val SLOT_QUERY = "query"
         const val SLOT_TARGET = "target"
         const val SLOT_VALUE = "value"
+
+        /**
+         * The conversation a chat turn belongs to, when the dispatcher routes through a
+         * session-aware path. Carries as a slot because the capability set is shared across
+         * conversations and nothing besides chat needs it.
+         */
+        const val SLOT_SESSION = "session"
     }
 }
 

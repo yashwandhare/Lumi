@@ -3,10 +3,12 @@ package com.lumi.ui.chat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.lumi.core.CapabilityInput
+import com.lumi.core.CapabilityResult
 import com.lumi.core.Dispatcher
 import com.lumi.core.InteractionOrigin
 import com.lumi.core.Router
 import com.lumi.core.RouterOutcome
+import com.lumi.core.StructuredIntent
 import com.lumi.core.ai.GenerationRequest
 import com.lumi.core.ai.ModelHarness
 import com.lumi.core.ai.ModelState
@@ -280,15 +282,32 @@ class ChatViewModel @Inject constructor(
     }
 
     /**
-     * Runs ordinary chat generation: the prompt goes to the resident model and the reply
-     * streams, with TTS applied for spoken turns only.
+     * Runs ordinary chat generation by dispatching the chat capability, so chat travels the
+     * same one dispatch path as every other capability instead of calling the harness on a
+     * private road. The reply streams back as [com.lumi.core.CapabilityResult.Streaming] and is
+     * collected here; conversation persistence and the turn's audit entry stay with the view
+     * model because they need the conversation id this capability is not built to hold.
      */
     private suspend fun runChatGeneration(prompt: String, conversationId: Long?) {
-        harness.generate(
-            GenerationRequest(prompt = prompt, sessionId = sessionId),
-        ).collect { delta ->
-            appendToReply(delta)
-            feedSpeech(delta)
+        val result = dispatcher.dispatch(
+            CapabilityInput(
+                intent = StructuredIntent(
+                    capability = CapabilityId.CHAT,
+                    rawText = prompt,
+                    slots = mapOf(StructuredIntent.SLOT_SESSION to sessionId.value),
+                ),
+                origin = turnOrigin,
+            )
+        )
+
+        if (result is CapabilityResult.Streaming) {
+            result.chunks.collect { delta ->
+                appendToReply(delta)
+                feedSpeech(delta)
+            }
+        } else {
+            updateLastModelTurn { it.copy(text = result.userMessage, streaming = false) }
+            return
         }
 
         val reply = currentReplyText()
