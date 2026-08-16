@@ -18,10 +18,10 @@ import javax.inject.Inject
 /**
  * The only activity.
  *
- * Voice sessions and the SOS screen render as dialogs and destinations inside this activity
- * rather than as separate activities, so they share one resident model session. v1 learned
- * this the hard way: a second activity meant a second view model and a second attempt to
- * hold the model.
+ * Voice and call sessions render as dialogs and destinations inside this activity rather
+ * than as separate activities, so they share one resident model session. v1 learned this the
+ * hard way: a second activity meant a second view model and a second attempt to hold the
+ * model.
  *
  * The model gate lives here, above [LumiApp] and its NavHost, so the drawer and its routes
  * never appear before the model exists. First run shows [ModelSetupScreen]; once the harness

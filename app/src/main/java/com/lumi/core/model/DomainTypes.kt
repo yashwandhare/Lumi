@@ -15,7 +15,10 @@ enum class CapabilityId {
     DEVICE,
     JOURNAL,
     MEMORY,
-    SOS,
+    SEARCH,
+    MAIL,
+    CALL,
+    NOTIFICATIONS,
     TOOLS,
 }
 
@@ -67,16 +70,15 @@ enum class ActionType {
     NOTIFY,
     SPEAK,
     RUN_RAG_QUERY,
-    SOS,
 }
 
 /**
  * How an audited action ended.
  *
- * [PARTIAL] exists because it is the honest answer more often than either extreme — an
- * SOS that flashed and sounded but could not send SMS did not succeed and did not fail.
- * The error UX requirement to say "whether the action partially completed" depends on
- * this value being recorded truthfully.
+ * [PARTIAL] exists because it is the honest answer more often than either extreme — a routine
+ * that silenced the phone but could not reach wifi did not succeed and did not fail, and a
+ * reply the user stopped halfway is neither. The error UX requirement to say "whether the
+ * action partially completed" depends on this value being recorded truthfully.
  */
 enum class AuditOutcome {
     SUCCESS,

@@ -34,7 +34,7 @@ data class StructuredIntent(
  * escalating to [MODEL], the cheaper stages need better coverage.
  */
 enum class RouterTier {
-    /** Regex and keywords. Zero latency, no model. SOS and exact device commands. */
+    /** Regex and keywords. Zero latency, no model. Exact device commands. */
     RULES,
 
     /** Cosine similarity against labelled example phrases, using the bundled embedder. */
@@ -70,7 +70,7 @@ sealed interface RouterOutcome {
 /**
  * Turns text into an intent.
  *
- * One router serves chat, routines, files, device actions, journalling, and SOS, so the app
+ * One router serves chat, routines, files, device actions, web search, and mail, so the app
  * cannot grow two incompatible command systems.
  */
 interface Router {

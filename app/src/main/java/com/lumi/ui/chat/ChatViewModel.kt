@@ -6,11 +6,17 @@ import com.lumi.core.ai.GenerationRequest
 import com.lumi.core.ai.ModelHarness
 import com.lumi.core.ai.ModelState
 import com.lumi.core.ai.SessionId
+import com.lumi.core.audit.AuditLog
+import com.lumi.core.model.AuditOutcome
+import com.lumi.core.model.CapabilityId
 import com.lumi.core.model.MessageRole
 import com.lumi.data.chat.ChatRepository
 import com.lumi.data.local.ChatEntity
 import com.lumi.data.settings.SettingsStore
+import com.lumi.di.ApplicationScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -32,12 +38,18 @@ import kotlin.random.Random
  * makes the model remember the last few turns. It follows that starting a new chat has to both clear
  * the screen and reset that session — clearing only the screen would leave the model still primed with
  * a conversation the user believes they ended, which is the bug "new chat doesn't work" describes.
+ *
+ * Every turn is written to the [AuditLog], including the ones that fail or get stopped. Chat is the
+ * first capability to do so, and the pattern here is the one the rest follow: record the fact and the
+ * backend, never the content. See [recordTurn].
  */
 @HiltViewModel
 class ChatViewModel @Inject constructor(
     private val harness: ModelHarness,
     private val chats: ChatRepository,
     private val settings: SettingsStore,
+    private val audit: AuditLog,
+    @param:ApplicationScope private val applicationScope: CoroutineScope,
 ) : ViewModel() {
 
     private val _turns = MutableStateFlow<List<ChatTurn>>(emptyList())
@@ -109,10 +121,28 @@ class ChatViewModel @Inject constructor(
                 if (conversationId != null && reply.isNotBlank()) {
                     chats.appendModelMessage(conversationId, reply, System.currentTimeMillis())
                 }
+                recordTurn(AuditOutcome.SUCCESS, "Answered a message")
+            } catch (cancellation: CancellationException) {
+                // Stopping is something the user did, not a failure. This has to be caught before
+                // Throwable and rethrown: catching it as a failure appended "could not finish that
+                // reply" to a reply the user chose to end, and swallowing it would leave the parent
+                // scope believing the job completed.
+                //
+                // The partial text is kept, so it has to be stored too. Leaving it on screen but out of
+                // the database means the answer is there until the user reopens the conversation and
+                // then silently is not — the same class of bug as history not working at all.
+                persistOutsideThisJob(conversationId, currentReplyText())
+                recordTurn(AuditOutcome.PARTIAL, "Reply stopped before it finished")
+                throw cancellation
             } catch (t: Throwable) {
                 // Surfaced in the transcript rather than swallowed. A chat that silently stops
                 // producing text is indistinguishable from one that is still thinking.
+                //
+                // Deliberately *not* persisted, unlike the stopped case. A truncated answer stored
+                // without the failure notice beside it reads as a complete one on reopen, and a reply
+                // that misrepresents itself is worse than a reply that is missing.
                 replaceReplyWithFailure()
+                recordTurn(AuditOutcome.FAILURE, "A reply could not be generated", t)
             } finally {
                 _generating.value = false
                 _thinkingVerb.value = null
@@ -205,6 +235,51 @@ class ChatViewModel @Inject constructor(
     }
 
     private fun newSessionId() = SessionId("chat-${System.currentTimeMillis()}")
+
+    /**
+     * Store a reply from outside the generation job.
+     *
+     * Needed because the caller is a cancelled coroutine, and a cancelled coroutine cannot suspend —
+     * a Room write from inside the `catch` would be dropped.
+     */
+    private fun persistOutsideThisJob(conversationId: Long?, reply: String) {
+        if (conversationId == null || reply.isBlank()) return
+        applicationScope.launch {
+            runCatching { chats.appendModelMessage(conversationId, reply, System.currentTimeMillis()) }
+        }
+    }
+
+    /**
+     * Write the turn to the audit log.
+     *
+     * **On the application scope, not [viewModelScope].** A stopped reply cancels the generation job,
+     * and a cancelled coroutine cannot suspend — a Room insert from inside the `catch` would be
+     * dropped precisely in the case worth recording.
+     *
+     * **No prompt text and no reply text, ever.** The conversation is already stored once, in the chat
+     * tables the user can read and delete. Copying it into the audit table would give the same words a
+     * second home with different retention and put them on a screen whose purpose is the opposite —
+     * showing *that* Lumi acted, not repeating what was said. What belongs here is the fact of the turn
+     * and the backend it ran on, because that backend is the evidence the inference was local.
+     */
+    private fun recordTurn(
+        outcome: AuditOutcome,
+        summary: String,
+        error: Throwable? = null,
+    ) {
+        val backend = settings.model.value.backend.label
+        val metrics = harness.lastMetrics.value
+        val timing = metrics?.let { " ${it.approxTokens} tokens in ${it.totalMs / 1000.0}s." } ?: ""
+        val cause = error?.let { " ${it::class.simpleName ?: "Error"}." } ?: ""
+        applicationScope.launch {
+            audit.record(
+                capability = CapabilityId.CHAT,
+                summary = summary,
+                outcome = outcome,
+                detail = "On this device, $backend.$timing$cause",
+            )
+        }
+    }
 
     private val random = Random(System.currentTimeMillis())
 

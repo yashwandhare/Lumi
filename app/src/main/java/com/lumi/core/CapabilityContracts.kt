@@ -69,8 +69,8 @@ sealed interface CapabilityResult {
     /**
      * The action has real-world consequence and needs an explicit yes.
      *
-     * Required before anything irreversible or externally visible. The bare SOS keyword is
-     * the one documented exception — see decisions.md.
+     * Required before anything irreversible or externally visible. A suggestion raised from a
+     * notification always needs one, because the user did not ask for it — see decisions.md.
      */
     data class NeedsConfirmation(
         override val userMessage: String,

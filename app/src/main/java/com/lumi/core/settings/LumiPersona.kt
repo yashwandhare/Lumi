@@ -15,12 +15,12 @@ package com.lumi.core.settings
  * The last three rules are not style preferences. They are the journaling boundary and the
  * no-autonomous-action rule from `decisions.md`, stated in the words the model actually receives.
  *
- * **One thing from v1 is deliberately not carried across yet:** the emergency block instructing the
- * model to call an `sos_emergency` tool. SOS is Phase 5 and that tool does not exist, so the
- * instruction would promise an action nothing performs. Restore it in the same commit that builds the
- * tool, never before. v1's RAG grounding prompt is also kept separate on purpose — layering brevity
- * and personality rules over strict-citation instructions degraded its output format, so Phase 4 gets
- * its own.
+ * **One thing from v1 is deliberately not carried across:** the emergency block instructing the model
+ * to call an `sos_emergency` tool. SOS is cut, so the instruction would promise an action nothing
+ * performs. The general rule it illustrates still holds — never name a tool in the persona before the
+ * tool exists. v1's RAG grounding prompt is also kept separate on purpose: layering brevity and
+ * personality rules over strict-citation instructions degraded its output format, so Phase 4 gets its
+ * own.
  */
 object LumiPersona {
 
