@@ -14,7 +14,7 @@ import javax.inject.Singleton
  * Wires the voice stack: one recognition engine, one speaker.
  *
  * Both are singletons because each holds a loaded native/platform resource. A second sherpa
- * recognizer would be a second ~41MB load plus a second contended microphone; a second TTS
+ * recognizer would be a second ~160MB load plus a second contended microphone; a second TTS
  * engine is a second IPC handshake. Anything that listens or speaks injects the interface and
  * gets the same instance.
  */
@@ -23,8 +23,8 @@ import javax.inject.Singleton
 abstract class VoiceModule {
 
     /**
-     * sherpa-onnx is the Phase 2 recognition stack on the owner's ruling — see
-     * decisions_devb.md's 2026-08-16 reversal. Streaming partials, on-device, no token.
+     * sherpa-onnx hosts the recognition stack — Whisper base.en since the 2026-08-16 accuracy
+     * ruling; see decisions_devb.md. On-device, no token.
      */
     @Binds
     @Singleton

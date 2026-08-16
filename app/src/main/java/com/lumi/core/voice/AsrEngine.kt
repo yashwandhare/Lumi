@@ -31,10 +31,11 @@ sealed interface AsrState {
 /**
  * Speech-to-text for voice input.
  *
- * Streaming is the contract, not an optimisation: v1 produced text only after the recording
+ * Live progress is the contract, not an optimisation: v1 produced text only after the recording
  * stopped, and the seconds of dead air that created were the single reason its voice stack
  * felt broken. Implementations deliver [Partial] events as words settle and one [Final] when
- * the session ends.
+ * the session ends; a Whisper-based engine meets this by recognising each pause-delimited
+ * utterance as it closes, not by waiting for the whole take.
  */
 interface AsrEngine {
 
@@ -42,7 +43,7 @@ interface AsrEngine {
 
     /**
      * Fetches and loads the recognition model if needed. Idempotent, never throws; failures
-     * land in [state]. The first call on a fresh phone is a ~41MB download, which is why the
+     * land in [state]. The first call on a fresh phone is a ~160MB download, which is why the
      * state carries progress instead of being a boolean.
      */
     suspend fun prepare()

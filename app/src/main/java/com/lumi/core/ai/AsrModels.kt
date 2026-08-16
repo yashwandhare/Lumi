@@ -1,80 +1,69 @@
 package com.lumi.core.ai
 
 /**
- * The streaming speech-to-text model, pinned the same way as [GemmaModel] and [EmbeddingModel].
+ * The speech-to-text models, pinned the same way as [GemmaModel] and [EmbeddingModel].
  *
- * **sherpa-onnx streaming zipformer EN, 2023-06-26, chunk-16-left-128.** Roughly 73MB across four
- * files.
+ * **Whisper base.en (int8) served by sherpa-onnx**, chosen 2026-08-16 after live testing of the
+ * 20M streaming zipformer showed it could not reliably recognise everyday sentences. The owner's
+ * ruling: recognition quality is the app's front door and cannot be compromised. base.en is the
+ * smallest Whisper that holds ordinary speech — ~160MB across three files, downloaded on first
+ * voice use the same way as everything else here.
  *
- * **This replaced a 20M-parameter model on the owner's ruling of Aug 16: optimise for working, not
- * for download size.** The 20M model was chosen when Phase 2 voice was assumed to be short commands,
- * and on the device it was not usable — "hello" came back as "O", and ambient room noise came back as
- * words. That is not a bug in the session loop, it is the accuracy ceiling of a 20M model, so no
- * amount of fixing the audio path recovers it. This model is the full English streaming zipformer and
- * is what the sherpa project recommends for English.
+ * The fourth file is **Silero VAD**, the voice-activity detector that splits mic audio into
+ * utterances. It is what keeps latency low: each short utterance is decoded on its own the moment
+ * a pause ends it, instead of waiting for one large batch.
  *
- * **int8 encoder and joiner, fp32 decoder** — sherpa's own recommended combination. The encoder
- * dominates both size and compute, so quantising it is what keeps streaming real-time on a mid-range
- * phone; the decoder is 2MB and quantising it costs accuracy for nothing. The fp32 encoder exists at
- * 262MB and would be more accurate still, but it has to keep up with live speech on an Exynos 1380 —
- * revisit only with a measured real-time factor, not on the assumption that bigger is better.
- *
- * `left-128` rather than `left-64`: more left context, better accuracy on connected speech. If the
- * transcript is measured lagging behind the speaker on the demo device, `left-64` is the same four
- * files with `-left-64` in their names and is the first thing to try.
- *
- * Every value below was read off the live artefact — sizes and SHA-256 from the Hugging Face LFS
- * metadata, with `tokens.txt` hashed directly because it is stored inline rather than in LFS. That is
- * what makes the digest check trustworthy rather than self-consistent. `tokens.txt` is byte-identical
- * to the 20M model's: the vocabulary did not change, only the acoustic model.
+ * Every value below was read off the live artefact: the size and SHA-256 of each file were
+ * measured from what the URL serves, which is what makes the digest check here trustworthy
+ * rather than self-consistent.
  *
  * The runtime itself — the sherpa-onnx native libraries and Kotlin API — ships as a pinned AAR
  * fetched by `tools/fetch-sherpa.sh`; see `decisions_devb.md` for why it is not committed.
  */
 object AsrModels {
 
-    /** Every sherpa streaming model here is trained for 16kHz mono input. */
+    /** Whisper and the VAD both work on 16kHz mono. */
     const val SAMPLE_RATE = 16000
 
     const val FEATURE_DIM = 80
 
     private const val BASE_URL =
-        "https://huggingface.co/csukuangfj/sherpa-onnx-streaming-zipformer-en-2023-06-26/resolve/main/"
-
-    val encoder = ManagedModel(
-        fileName = "encoder-epoch-99-avg-1-chunk-16-left-128.int8.onnx",
-        url = BASE_URL + "encoder-epoch-99-avg-1-chunk-16-left-128.int8.onnx",
-        sizeBytes = 71_083_163,
-        sha256 = "563fde436d16cf7607cf408cd6b30909819d03162652ef389c2450ced3f45ac1",
-        humanSize = "68 MB",
-    )
+        "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-base.en/resolve/main/"
 
     val decoder = ManagedModel(
-        fileName = "decoder-epoch-99-avg-1-chunk-16-left-128.onnx",
-        url = BASE_URL + "decoder-epoch-99-avg-1-chunk-16-left-128.onnx",
-        sizeBytes = 2_092_621,
-        sha256 = "7bf787f90b194b307e5a4ad6a34fadb4e748304c35f78a8d66358a05b13ee6ef",
-        humanSize = "2 MB",
+        fileName = "base.en-decoder.int8.onnx",
+        url = BASE_URL + "base.en-decoder.int8.onnx",
+        sizeBytes = 130_669_978,
+        sha256 = "f7162ad6db2dbef16cfaeaa7f945b9d7dd9c1b8d472f6aca82f2273d185e4d41",
+        humanSize = "125 MB",
     )
 
-    val joiner = ManagedModel(
-        fileName = "joiner-epoch-99-avg-1-chunk-16-left-128.int8.onnx",
-        url = BASE_URL + "joiner-epoch-99-avg-1-chunk-16-left-128.int8.onnx",
-        sizeBytes = 259_335,
-        sha256 = "d944208d660d67c8d72cd2acaeac971fa5ceb8c80e76c1968148846fedd6e297",
-        humanSize = "0.3 MB",
+    val encoder = ManagedModel(
+        fileName = "base.en-encoder.int8.onnx",
+        url = BASE_URL + "base.en-encoder.int8.onnx",
+        sizeBytes = 29_120_534,
+        sha256 = "ef6b936f4c9b1d90a3b68634b60c4ed8576b26172b33c2535ec0e933c9edb823",
+        humanSize = "28 MB",
     )
 
     val tokens = ManagedModel(
-        fileName = "tokens.txt",
-        url = BASE_URL + "tokens.txt",
-        sizeBytes = 5_048,
-        sha256 = "49e3c2646595fd907228b3c6787069658f67b17377c60aeb8619c4551b2316fb",
-        humanSize = "5 KB",
+        fileName = "base.en-tokens.txt",
+        url = BASE_URL + "base.en-tokens.txt",
+        sizeBytes = 835_554,
+        sha256 = "306cd27f03c1a714eca7108e03d66b7dc042abe8c258b44c199a7ed9838dd930",
+        humanSize = "1 MB",
     )
 
-    /** Downloaded in order; the UI reports one combined bar across all four. */
-    val all: List<ManagedModel> = listOf(encoder, decoder, joiner, tokens)
+    val vad = ManagedModel(
+        fileName = "silero_vad.onnx",
+        url = "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx",
+        sizeBytes = 643_854,
+        sha256 = "9e2449e1087496d8d4caba907f23e0bd3f78d91fa552479bb9c23ac09cbb1fd6",
+        humanSize = "1 MB",
+    )
+
+    /** Largest file first so the combined progress bar moves honestly from the start. */
+    val all: List<ManagedModel> = listOf(decoder, encoder, tokens, vad)
 
     val totalBytes: Long = all.sumOf { it.sizeBytes }
 }

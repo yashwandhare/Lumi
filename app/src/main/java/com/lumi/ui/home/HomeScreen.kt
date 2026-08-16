@@ -89,7 +89,7 @@ fun HomeScreen(
      * never fires, the request is never made, and voice can never be turned on at all. Only a refusal
      * quietens the button, because that is the one state a further tap cannot improve.
      *
-     * Engine readiness is not required either: the first tap starts the ~41MB model download, which is
+     * Engine readiness is not required either: the first tap starts the ~160MB model download, which is
      * why the overlay can show itself downloading. A button gated on the model being present would
      * never get pressed on a fresh install.
      */

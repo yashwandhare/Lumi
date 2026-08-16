@@ -155,3 +155,38 @@ ends, because the audit proves the fact of leaving the device, not the outcome.
 **Reversal condition:** if a capability needs to make several gated requests, or needs to
 decide per-request (e.g. a fetch that fans out), the gate moves into the capability and this
 entry gets superseded, not quietly worked around.
+
+### [devb] 2026-08-16 — Reversed: Whisper base.en replaces the 20M streaming zipformer for recognition
+
+Supersedes the sherpa-ONNX entry's model choice (the runtime ruling stands; only the model
+inside it changes). **On-device testing on the g54 showed the 20M zipformer could not reliably
+recognise everyday sentences — transcripts came back garbled — and the owner ruled 2026-08-16
+that speech recognition is the app's front door and accuracy cannot be compromised.** The owner
+also made latency a first-class requirement: transcription delay must be kept as low as possible.
+
+**The model is sherpa-onnx-whisper-base.en (int8)**, ~160MB across three files (encoder 28MB,
+decoder 125MB, tokens), plus Silero VAD (~0.6MB), hosted on the same ungated Hugging Face repos
+and fetched/verified by the same `ModelStore` machinery as before. Base was chosen over Small:
+small.en is 375MB and roughly four times slower per second of audio — on this mid-range device
+that cost buys accuracy the short spoken commands of this product do not need. If real-world
+accuracy still disappoints, the ladder is small.en, not a network service.
+
+**Latency is restored without streaming, by design:**
+
+1. Silero VAD splits mic audio into utterances — a 450ms pause closes a segment, and an
+   utterance is force-split at 8s so no single decode grows large.
+2. Each closed segment is decoded on a dedicated thread off the recording loop, so the next
+   utterance is captured while the previous one is recognised; the transcript grows live, and
+   the final text arrives one short decode after the last pause.
+3. The session closes ~900ms after the last utterance ends (not after a long silence), so the
+   reply starts promptly.
+
+**What changes for the user:** first voice use downloads ~160MB instead of ~41MB (still
+progress-reported, still digest-pinned), partial transcripts arrive per utterance rather than
+per word, and recognition accuracy improves substantially. **What does not change:** recognition
+stays fully on-device and is audited as such; TTS unchanged; the `AsrEngine` interface unchanged
+(it promised live progress, never specifically per-word progress).
+
+**Reversal condition:** if on-device decode of an 8-second segment proves too slow on mid-range
+hardware (target: well under the ~20s the generative model takes anyway), tune `maxSpeechDuration`
+down before touching the model again — shorter segments are the latency lever, not a model swap.
