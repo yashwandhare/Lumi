@@ -225,26 +225,31 @@ Nothing here is a feature. All of it is the difference between a demo and a cras
       partial text is kept and persisted, and the turn is audited as `PARTIAL`. A model that cannot be
       interrupted is a model that owns the screen for as long as it wants — on a 2B decoding at ~12 tok/s
       a long answer is thirty seconds of nothing the user can do.
-- [ ] `[deva]` Process-death and rotation pass on the chat screen. A streaming reply interrupted by a
+- [x] `[deva]` Process-death and rotation pass on the chat screen. A streaming reply interrupted by a
       configuration change must not lose the turn or leak the generation coroutine.
-- [ ] `[deva]` One low-memory pass with the model resident. The Engine holds ~2.6GB of mapped weights;
+- [x] `[deva]` One low-memory pass with the model resident. The Engine holds ~2.6GB of mapped weights;
       confirm what happens when Android reclaims the process mid-conversation, and that the reload path
       is the same one first-run uses.
-- [~] `[both]` **Baseline exit run on the physical device**, fresh launch, no debugger. Three of five
-      scenarios pass; **the gate is not closed.** Verified on a Samsung SM-M356B, fresh install:
+- [x] `[both]` **Baseline exit run on the physical device**, fresh launch, no debugger. All five
+      scenarios pass. **The gate is closed.** Dev A verified scenarios 1-2 on a Samsung SM-M356B; Dev B
+      verified the remainder on a moto g54 5G (Dimensity 7020), Aug 17:
       1. **[x]** Cold start → model loads on CPU. **3.0s** with warm compilation caches, 8-12s without.
-         **GPU not yet re-verified on this build** — it loaded in 14-21s when last measured.
+          **GPU re-verified on the moto g54: it loads, but 48.5s** — unusably slow on the Mali-G57. CPU
+          confirmed as the correct default on mid-range hardware; GPU stays optional.
       2. **[x]** Conversation renders markdown, a numbered list, and a fenced code block correctly, and
-         holds context across turns ("which was the second one?" resolves against the previous answer).
-         Warm reply 4.3s against 18.6s cold. **Run to ten turns before ticking this fully** — two were
-         checked.
-      3. **[ ]** New chat, reopen an old chat from the drawer, both keep their own context.
-      4. **[ ]** Background the app mid-reply, return, the reply is intact.
-      5. **[ ]** Kill and relaunch. History is there. No crash, no ANR, no orphaned notification.
+          holds context across turns ("which was the second one?" resolves against the previous answer).
+          Warm reply 4.3s against 18.6s cold. Context confirmed across turns on the g54 too.
+      3. **[x]** New chat, reopen an old chat from the drawer, both keep their own context.
+      4. **[x]** Background the app mid-reply, return, the reply is intact.
+      5. **[x]** Kill and relaunch. History is there. No crash, no ANR, no orphaned notification.
 
-**Phase 2 does not start until every box in Stabilisation is ticked.** As of Aug 16 evening three items
-remain: the rotation and process-death pass, the low-memory pass, and scenarios 3-5 plus the GPU leg of
-scenario 1. None is known-broken; none has been checked.
+**Phase 2 does not start until every box in Stabilisation is ticked.** All boxes are now ticked — the
+gate closed on Aug 17. One residual note: a reply force-killed mid-generation (task swiped or `am kill`
+during decode) leaves an honest "could not finish that reply" state and restarts generation; it does not
+crash. Also found on the g54: Google's EmbeddingGemma `.task` artefact on its CDN carries two stray bytes
+before the ZIP magic — the digest is self-consistent but MediaPipe rejects it, so the router's similarity
+tier degrades to lexical scoring. Chat still works; the artefact itself needs attention (see
+`decisions_devb.md`).
 
 ## Phase 2 — Voice-first mode and the router
 

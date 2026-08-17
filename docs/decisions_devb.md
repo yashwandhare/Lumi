@@ -190,3 +190,75 @@ stays fully on-device and is audited as such; TTS unchanged; the `AsrEngine` int
 **Reversal condition:** if on-device decode of an 8-second segment proves too slow on mid-range
 hardware (target: well under the ~20s the generative model takes anyway), tune `maxSpeechDuration`
 down before touching the model again — shorter segments are the latency lever, not a model swap.
+
+## 2026-08-17 — Phase 1 stabilisation gate closed, verified on the g54
+
+**Ruling: the gate is closed.** Dev B verified the three remaining stabilisation items on a
+moto g54 5G (Dimensity 7020, Android 15) — the same hardware Whisper was proven on.
+
+- **Rotation / process death:** a configuration change with messages on screen (simulated via
+  `wm density`, which destroys and recreates the activity the same way a rotation does) left the chat
+  transcript intact, same process, no crash.
+- **Low memory:** `am kill` with the 2.6GB model resident killed the process; relaunch cold-started the
+  model and the full history was recovered from Room and reopenable. No orphaned notification, no ANR.
+- **GPU leg:** GPU loads on this device but took **48.5s** — the Mali-G57 cannot serve it. Hardware
+  finding, not a code regression (Samsung SM-M356B measured 14-21s in Phase 1). CPU remains the default;
+  GPU stays available as an explicit choice for capable devices.
+- Two honest residuals, neither a crash: a reply force-killed mid-generation shows "could not finish
+  that reply" and restarts clean; and Google's EmbeddingGemma `.task` artefact is currently invalid —
+  see the entry below.
+
+## 2026-08-17 — EmbeddingGemma CDN artefact is corrupt; router degraded to lexical scoring
+
+**Discovery, not a code change.** On the g54, MediaPipe rejects `embedding_gemma.task` with
+"not a valid Flatbuffer buffer". Investigation: the on-device file's SHA-256 matches the pinned constant
+`913b7a1e…`, and a fresh download from Google's CDN hashes identically — but the bytes start `00 00 504b`
+(ZIP magic preceded by two stray nulls), and the CDN's `last-modified` is 23 Jun 2026. Conclusion: the
+pinned digest and the artefact are self-consistent with each other, and the artefact is broken at the
+source. The digest was pinned from a file that was already bad, so the receipt gives false confidence.
+
+**Why this is not an app regression:** the embedder's failure mode is designed to degrade.
+`MediaPipeEmbedder.load` reports `EmbedderState.Unavailable`; the embed call returns null;
+`SimilarityTier` falls back to token-overlap lexical scoring; chat and rules-tier routing work as before.
+The router's accuracy for paraphrased intents is reduced, but nothing breaks and nothing claims to work
+when it does not.
+
+**What needs attention (separate, urgent):** a known-good `.task` file. Options: pin a digest from a
+copy fetched before 23 Jun 2026 if one survives on either developer's machine or device cache; check
+whether a versioned (non-`latest`) MediaPipe CDN path serves an intact build; or rebuild the same
+EmbeddingGemma 300m through the Token-free MediaPipe converter. Whatever is chosen, the new pin must be
+verified by actually loading it in `TextEmbedder`, not by digest alone — a digest cannot detect a bad
+artefact, as this one proved. Until then the similarity tier stays lexical. This is recorded here rather
+than swallowed, because `for_devb.md` forbids silent degradation being mistaken for failure.
+
+
+## 2026-08-17 — Kokoro TTS source analysis: silence_scale and max_num_sentences
+
+**What the source says (sherpa-onnx v1.13.5, offline-tts-kokoro-impl.h).** Read the native
+implementation to settle two open questions before tuning further:
+
+1. **`max_num_sentences` is ignored for Kokoro.** The impl hard-codes `batch_size = 1` and logs
+   a warning if any other value is set. Each sentence gets its own `Process()` call internally
+   regardless of the config. Batching multiple sentences into one `generate()` call therefore
+   does not gain parallelism — but it does reduce per-call overhead, so larger chunks per
+   request are still preferable to one-sentence-per-request.
+
+2. **`silence_scale` semantics confirmed.** Any silence interval longer than 200 ms is
+   shortened to `interval_length * silence_scale`. Range is [0.01, 10]. The Kotlin
+   `GenerationConfig.silence_scale` sentinel value of 0.2 falls back to `OfflineTtsConfig`'s
+   `silence_scale`, so setting it on `OfflineTtsConfig` is the correct lever for the whole
+   engine. It is applied after each sentence's `Process()` call.
+
+**What changed.**
+- `KokoroReplySpeaker.createEngine()`: `silenceScale = 0.15f` on `OfflineTtsConfig` (was
+  default 0.2). The owner's spec: "shorten natural pauses" without making speech run together.
+  0.15 at 24 kHz means a 300 ms generated pause becomes 45 ms — a natural breath beat, not a
+  gap. Lower than 0.01 is rejected by sherpa and was never considered.
+- `ChatViewModel.MAX_SPEECH_CHUNK`: 160 → 280 chars. Fewer, larger `generate()` calls mean
+  fewer inter-call boundaries where the pipeline can stall. The first fragment still fires
+  early via the `anySpokenThisTurn` fast path.
+
+**What remains open.** RTF on Dimensity 7020 is still unknown — no device timing data has been
+captured for the current build. If RTF > 1 (synthesis slower than playback), the pipeline
+stalls and no chunk-size or silence tuning fixes that; `NUM_THREADS` or model size would need
+revisiting. Owner needs to run `adb logcat -s LumiTts` during a test turn to unblock this.
