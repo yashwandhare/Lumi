@@ -327,3 +327,104 @@ three**, so nothing you build there is wasted. Do not wait on it.
 - Zero compiler warnings. The build is at zero right now — `assembleDebug` and `installDebug` both clean.
 - Verify on the device, not by reading your own code. The Stop control existed in the plan for a day
   before anyone noticed there was no button for it, and only a device run found that.
+
+## Continuation brief — Aug 16, late evening (supersedes the section above)
+
+Dev A ran out of session budget here. Everything below is yours. **Read this before the Aug 16 evening
+brief above — where they disagree, this wins.**
+
+### Your Whisper PR is merged, with two fixes on top
+
+`origin/devb` was merged into `main`. Whisper base.en + Silero VAD was the right call and the owner has
+confirmed recognition now works well. Two things your branch did not have, both now applied to
+`SherpaAsrEngine.kt`:
+
+1. **`openRecorder()` leaked the microphone.** `takeIf { it.state == STATE_INITIALIZED }` drops a
+   non-initialised `AudioRecord` without releasing it, and an unreleased recorder holds the mic — so the
+   first failed open made every later attempt fail and the mic button became a coin flip. It now calls
+   `release()` explicitly. **Do not reintroduce the `takeIf` form.**
+2. **`AudioSource.MIC` → `VOICE_RECOGNITION`.** MIC applies vendor voice-memo gain and noise processing
+   that distorts the spectrum a recogniser expects.
+
+### Latency: a double-count is fixed, the rest is measurement
+
+The capture loop was restarting the end-of-turn timer every time a VAD segment popped. A segment only
+pops *after* Silero has already waited `VAD_MIN_SILENCE_S` to confirm the pause, so the two windows
+stacked — about 1.35s of dead air after the user's last word before anything reached Gemma. The timer now
+keys off `isSpeechDetected()` only. **Do not reset `lastSpeechMs` when popping a segment.**
+
+Then tuned: `VAD_MIN_SILENCE_S` 0.45→0.30, `END_SILENCE_MS` 900→500, `MIC_BLOCK_SAMPLES` 2048→1024.
+Roughly 1.35s → 0.5s plus the final decode.
+
+**There is debug instrumentation waiting for you.** `SherpaAsrEngine` logs `segment audio=Xms
+decode=Yms` per utterance under tag `LumiAsr`. Run `adb logcat -s LumiAsr`, speak several sentences, and
+read the real numbers. **If decode time exceeds the audio length the transcript cannot keep up, and
+`VAD_MAX_SPEECH_S` is the lever — that is the reversal condition your own decision entry named.** Nobody
+has read these numbers yet.
+
+### Voice is a mode now, not a turn
+
+The owner ruled voice mode must not quit by itself. `ChatViewModel`:
+
+- `startVoiceSession()` enters the mode; `startListening()` is one pass and is re-armed automatically
+  after each reply, so a spoken conversation continues hands-free.
+- `exitVoiceMode()` is the only deliberate way out. The overlay's stop button exits during **Listening**;
+  during Thinking or Speaking it ends that turn and the mic reopens.
+- The re-arm sits behind `collectLatest` + `VOICE_TURN_SETTLE_MS` (700ms). **That delay is load-bearing** —
+  `speaker.speaking` drops between queued TTS chunks, and reopening the mic in one of those gaps makes
+  Lumi transcribe its own voice. Do not replace it with a plain `collect`.
+
+### Voice UI, as the owner asked for it
+
+`VoiceSessionOverlay` mascot is centred (equal `weight(1f)` above and below, stop control pinned bottom),
+`isTyping = false` always, and takes `soundLevel: Float`. `LumiBlob` gained `soundLevel` which composes a
+`voiceExpansion` multiplier on top of the breathing scale — deliberately *not* gated on
+`LocalMotionEnabled`, because with motion off it is the only remaining proof the mic is live. The docked
+corner mascot is suppressed while `voiceTurnActive`. Attachment-sheet subtext is sans-serif.
+
+`AsrEngine` gained `inputLevel: StateFlow<Float>` — RMS, normalised against `LEVEL_FULL_SCALE_RMS`,
+smoothed fast-attack/slow-decay so it does not collapse between syllables.
+
+### What is NOT done — this is your queue
+
+1. **The TTS voice is a generic robotic engine voice.** The owner's words: "nothing human like or even
+   near". `AndroidReplySpeaker.selectFemaleVoice()` picks a female voice by *name matching* (`"female"`
+   in `Voice.name`) because Android exposes no gender API — it works but the underlying voice is poor.
+   The owner deferred this ("we'll look into it later"). Options worth measuring: filter
+   `Voice.quality >= QUALITY_HIGH`, or a local neural TTS. **Network TTS is not an option** — it would
+   send Lumi's replies off-device and break the privacy claim.
+2. **Reminders still do nothing.** This is the biggest gap. `CapabilityModule` binds **only**
+   `ChatCapability`, so the router classifies "remind me at 6pm" correctly, the confirmation dialog
+   appears, and pressing **Do it** returns *"Lumi cannot do that yet."* Nothing is stored. There is no
+   Toast anywhere in the app — the owner read the confirmation dialog as a success message. Needed, and
+   all already in `docs/todo.md:330-365`: entity + DAO, Room migration 2→3 (no destructive fallback), a
+   `ReminderCapability` bound `@IntoSet`, time-of-day trigger, WorkManager execution (**`work-runtime` is
+   in `libs.versions.toml` but NOT yet a dependency in `app/build.gradle.kts`**), boot re-arm, idempotency
+   guard, audit event per fire.
+3. **In-chat reminder card.** `ChatTurn` has only role/text/streaming/metrics. Add a card variant so a set
+   reminder renders inline with title, day and time — reuse your `LumiCard`, do not invent a surface. The
+   owner called this "a small canvas tweak".
+4. **The Reminders screen is an `EmptyState`.** `LISTS` was renamed to `REMINDERS` and `NOTES` deleted;
+   the screen must hold reminders, todos and calendar items.
+5. **The RAG toggle grants nothing.** `ModelSettings.personalContext` exists, persists, and is bound to a
+   switch — but **no code reads it.** The retrieval path must consult it. Your own agent flagged this.
+6. **Web search has no capability behind it.** The gate and the toggle are real and audited; there is no
+   `SearchCapability`. Until there is, the switch controls a door with no room behind it.
+7. **Phase 1's gate never closed.** Rotation/process-death pass, low-memory pass, and exit scenarios 3-5.
+   The owner deferred these until Whisper was proven; it now is, so they are live again.
+
+### Known-stale docs
+
+`docs/DESIGN_LANGUAGE.md` §8 still lists "Notes" among the sidebar destinations and claims 14 entries.
+Editing the design authority needs owner sign-off, so it was left alone — raise it.
+
+`docs/todo.md` Phase 2 still describes the ASR item as a sherpa *streaming* spike. The runtime is sherpa
+but the model is Whisper and it is batch-with-VAD. Your decision entry records this correctly; the todo
+line does not.
+
+### Device note
+
+All Dev A measurements are on the owner's **Samsung SM-M356B** (Exynos 1380, Android 16) — cold model load
+**2822ms** with warm caches. Yours are on a **moto g54 5G** (Android 15). The owner has ruled the Samsung
+is the demo device. `COMPETITIVE_LANDSCAPE.md` quotes load times as a positioning claim, so keep numbers
+attributed to the device they came from.
