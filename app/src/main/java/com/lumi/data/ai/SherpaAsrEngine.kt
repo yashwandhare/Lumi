@@ -503,13 +503,13 @@ class SherpaAsrEngine @Inject constructor(
         /**
          * Silence shorter than this does not end an utterance: real speakers pause.
          *
-         * 0.30s rather than 0.45s. This is the dominant term in perceived lag — it is paid on every
-         * single utterance, before the decode even starts. 300ms is still longer than the gaps
-         * inside connected speech, and a mid-sentence split is not a correctness problem here
+         * 0.22s rather than 0.45s. This is the dominant term in perceived lag — it is paid on every
+         * single utterance, before the decode even starts. Short natural pauses inside connected
+         * speech are still longer than this, and a mid-sentence split is not a correctness problem
          * anyway: segments are concatenated into one transcript, so the cost of splitting early is
          * an extra short decode, not a lost word.
          */
-        const val VAD_MIN_SILENCE_S = 0.30f
+        const val VAD_MIN_SILENCE_S = 0.22f
 
         const val VAD_MIN_SPEECH_S = 0.25f
 
@@ -522,9 +522,11 @@ class SherpaAsrEngine @Inject constructor(
          * Measured from real speech, not from a segment popping — see the note in the capture loop,
          * where restarting this timer on a pop was silently adding [VAD_MIN_SILENCE_S] on top of it.
          * With that double-count gone, this is the only end-of-turn wait, so it can be short: the
-         * VAD has already confirmed the speaker stopped before this timer runs out.
+         * VAD has already confirmed the speaker stopped before this timer runs out. 350ms is the
+         * shortest value that still lets a single brief catch-breath before a long sentence close
+         * the turn rather than cut it off.
          */
-        const val END_SILENCE_MS = 500L
+        const val END_SILENCE_MS = 350L
 
         /** A tap with no speech at all closes the session rather than listening forever. */
         const val IDLE_TIMEOUT_MS = 7_000L

@@ -23,6 +23,15 @@ interface ReplySpeaker {
     val speaking: StateFlow<Boolean>
 
     /**
+     * Readies the engine, fetching any models it needs. Idempotent, never throws; a caller
+     * simply observes [available] afterwards. The platform engine needs no preparation; an
+     * on-device neural voice uses this for its one-time download on first voice use.
+     */
+    suspend fun prepare() {
+        // Default: the engine initializes itself at construction.
+    }
+
+    /**
      * Appends [text] to the speech queue. A blank addition is ignored — an empty reply has
      * nothing to say.
      */

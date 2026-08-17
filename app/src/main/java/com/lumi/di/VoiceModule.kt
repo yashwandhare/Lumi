@@ -3,7 +3,7 @@ package com.lumi.di
 import com.lumi.core.voice.AsrEngine
 import com.lumi.core.voice.ReplySpeaker
 import com.lumi.data.ai.SherpaAsrEngine
-import com.lumi.data.voice.AndroidReplySpeaker
+import com.lumi.data.voice.KokoroReplySpeaker
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -30,8 +30,11 @@ abstract class VoiceModule {
     @Singleton
     abstract fun bindAsrEngine(implementation: SherpaAsrEngine): AsrEngine
 
-    /** Platform TTS for spoken replies. Speaks only turns whose origin is VOICE. */
+    /**
+     * Sherpa-onnx-hosted Kokoro voice for spoken replies, falling back to the platform engine
+     * when the voice models are not yet on the device. Speaks only turns whose origin is VOICE.
+     */
     @Binds
     @Singleton
-    abstract fun bindReplySpeaker(implementation: AndroidReplySpeaker): ReplySpeaker
+    abstract fun bindReplySpeaker(implementation: KokoroReplySpeaker): ReplySpeaker
 }

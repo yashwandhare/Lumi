@@ -110,12 +110,10 @@ class ChatViewModel @Inject constructor(
     private var listeningJob: Job? = null
 
     /**
-     * Speech is buffered to sentence-ish fragments rather than spoken per token. The queue rule
-     * still holds — chunks are appended with QUEUE_ADD and the speak job is never cancelled at the
-     * arrival of the next one — but a TTS flush on every five-token delta reads as stuttering
-     * instead of talking.
+     * Turns the streamed reply into speech-sized fragments; the voice reads as one continuous
+     * take because every fragment is a full batch, not a lone sentence. Reset per turn in [send].
      */
-    private var speechBuffer = StringBuilder()
+    private val speechChunker = SpeechChunker()
 
     /** So the next reply does not draw the same verb twice in a row. */
     private var lastVerb: String? = null
@@ -198,6 +196,10 @@ class ChatViewModel @Inject constructor(
 
         listeningJob = viewModelScope.launch {
             asr.prepare()
+            // The neural voice warms up on a side thread, **never** in front of the mic: waiting
+            // for its engine load made the first mic tap feel dead for seconds. It is ready long
+            // before the first reply is spoken; until then the platform voice reads that turn.
+            applicationScope.launch { speaker.prepare() }
             if (asr.state.value !is AsrState.Ready) {
                 // prepare() recorded why in its state; the UI renders it. The honest fallback
                 // is typed input, not a mic button that silently does nothing.
@@ -267,7 +269,7 @@ class ChatViewModel @Inject constructor(
     /** Silences a reply already being read. Separate from [stop] because generation is done by then. */
     fun stopSpeaking() {
         speaker.stop()
-        speechBuffer.setLength(0)
+        speechChunker.reset()
     }
 
     /**
@@ -394,6 +396,8 @@ class ChatViewModel @Inject constructor(
         speaker.stop()
 
         turnOrigin = origin
+        // A new reply starts its own voice take: the first fragment leaves early, the rest batch.
+        speechChunker.reset()
         // The voice overlay anchors on this: a spoken turn shows listening → thinking → speaking,
         // a typed turn keeps the transcript as the whole screen.
         _voiceTurnActive.value = origin == InteractionOrigin.VOICE
@@ -445,7 +449,7 @@ class ChatViewModel @Inject constructor(
                 // the database means the answer is there until the user reopens the conversation and
                 // then silently is not — the same class of bug as history not working at all.
                 speaker.stop()
-                speechBuffer.setLength(0)
+                speechChunker.reset()
                 persistOutsideThisJob(conversationId, currentReplyText())
                 recordTurn(AuditOutcome.PARTIAL, "Reply stopped before it finished")
                 throw cancellation
@@ -457,7 +461,7 @@ class ChatViewModel @Inject constructor(
                 // without the failure notice beside it reads as a complete one on reopen, and a reply
                 // that misrepresents itself is worse than a reply that is missing.
                 speaker.stop()
-                speechBuffer.setLength(0)
+                speechChunker.reset()
                 replaceReplyWithFailure()
                 recordTurn(AuditOutcome.FAILURE, "A reply could not be generated", t)
             } finally {
@@ -475,7 +479,7 @@ class ChatViewModel @Inject constructor(
         _generating.value = false
         _thinkingVerb.value = null
         speaker.stop()
-        speechBuffer.setLength(0)
+        speechChunker.reset()
         finishReply()
     }
 
@@ -536,56 +540,24 @@ class ChatViewModel @Inject constructor(
      * Hands a streamed delta to TTS when the turn was spoken.
      *
      * **Two v1 rules hold here.** Speak only turns whose origin is VOICE — a typed turn keeps
-     * the phone silent. And the queue appends: [speakChunk] uses QUEUE_ADD and never cancels
-     * the speak job at the arrival of the next chunk, which is the fix for the engine
+     * the phone silent. And the queue appends: fragments go in with QUEUE_ADD and the speak job
+     * is never cancelled at the arrival of the next one, which is the fix for the engine
      * interrupting its own sentence and skipping words.
      *
-     * Deltas are buffered until a sentence boundary so TTS gets speakable fragments rather
-     * than one token at a time.
+     * Batching, splitting, and markdown stripping live in [SpeechChunker]. The shape it
+     * produces is the anti-pause fix: each TTS request carries several sentences — a lead-in,
+     * its colon, the first list items — because every request boundary is where the pipeline
+     * can underrun into a long pause.
      */
     private fun feedSpeech(delta: String) {
         if (turnOrigin != InteractionOrigin.VOICE) return
-        speechBuffer.append(delta)
-        val text = speechBuffer.toString()
-
-        val cut = text.lastIndexOfAny(SENTENCE_BREAKS)
-        if (cut >= MIN_SPEECH_CHUNK) {
-            speakChunk(text.substring(0, cut + 1))
-            speechBuffer = StringBuilder(text.substring(cut + 1))
-            return
-        }
-
-        // **A fallback break on length, not only on punctuation.** A model that answers in one long
-        // unpunctuated run — a list, a code line, a sentence still in progress — produced no
-        // sentence mark at all, so nothing was spoken until the reply finished and then the whole
-        // thing arrived at once. Past this length, break at the last word boundary instead so
-        // speech keeps pace with the text. Breaking on a space and never mid-word: a chunk cut
-        // through a word is pronounced as two non-words.
-        if (text.length >= MAX_SPEECH_CHUNK) {
-            val space = text.lastIndexOf(' ')
-            if (space >= MIN_SPEECH_CHUNK) {
-                speakChunk(text.substring(0, space))
-                speechBuffer = StringBuilder(text.substring(space + 1))
-            }
-        }
+        speechChunker.feed(delta).forEach { fragment -> speaker.speak(fragment) }
     }
 
     /** Queues whatever is left once the reply finishes. Only for spoken turns. */
     private fun flushSpeech() {
         if (turnOrigin != InteractionOrigin.VOICE) return
-        val remainder = speechBuffer.toString()
-        speechBuffer.setLength(0)
-        if (remainder.isNotBlank()) speakChunk(remainder)
-    }
-
-    private fun speakChunk(text: String) {
-        // Markdown syntax is noise when spoken. Strip the common markers rather than reading
-        // asterisks and backticks aloud — the transcript still renders them.
-        val spoken = text
-            .replace(Regex("`{1,3}"), "")
-            .replace(Regex("\\*{1,2}"), "")
-            .trim()
-        if (spoken.isNotEmpty()) speaker.speak(spoken)
+        speechChunker.finish()?.let { remainder -> speaker.speak(remainder) }
     }
 
     /**
@@ -677,22 +649,6 @@ class ChatViewModel @Inject constructor(
     private companion object {
         const val EMPTY_REPLY = "Lumi had nothing to add to that."
         const val GENERATION_FAILED = "Lumi could not finish that reply. Try asking again."
-
-        /** Where TTS may break a streaming reply into speakable chunks. */
-        val SENTENCE_BREAKS = charArrayOf('.', '!', '?', ';', '\n')
-        /**
-         * Below this many characters a buffered fragment is not worth speaking — a lone "I"
-         * after a period is a false sentence boundary that would interrupt naturally as part
-         * of the next fragment.
-         */
-        const val MIN_SPEECH_CHUNK = 12
-
-        /**
-         * The length at which a reply is broken at a word boundary even with no punctuation in
-         * sight, so speech keeps pace with a long unpunctuated run instead of arriving all at once
-         * when the reply ends. Roughly a spoken breath's worth of text.
-         */
-        const val MAX_SPEECH_CHUNK = 160
 
         /**
          * How long generating and speaking must *both* stay false before a voice turn is over.
