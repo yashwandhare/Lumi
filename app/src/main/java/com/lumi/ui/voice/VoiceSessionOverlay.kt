@@ -3,7 +3,6 @@ package com.lumi.ui.voice
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -56,6 +55,8 @@ fun VoiceSessionOverlay(
     transcript: String,
     onCancel: () -> Unit,
     modifier: Modifier = Modifier,
+    /** Live sound level, 0f..1f. Drives the mascot's expansion — see [LumiBlob]. */
+    soundLevel: Float = 0f,
 ) {
     LumiGlassPanel(
         modifier = modifier.fillMaxSize(),
@@ -66,14 +67,19 @@ fun VoiceSessionOverlay(
                 .fillMaxSize()
                 .padding(MaterialTheme.spacing.xl),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
         ) {
-            Spacer(Modifier.height(32.dp))
+            // The mascot sits in the middle of the screen, not at the top. It is the subject of this
+            // screen rather than a header on it — the equal weights above and below are what centre
+            // it, and the stop control is pinned to the bottom on its own.
+            Spacer(Modifier.weight(1f))
 
             LumiBlob(
                 modifier = Modifier.size(96.dp),
-                isTyping = phase == VoicePhase.LISTENING,
+                // Never the typing pose here: that shrinks the mascot to get out of a keyboard's
+                // way, and on this screen there is no keyboard and nothing to make room for.
+                isTyping = false,
                 eyeSize = androidx.compose.ui.unit.DpSize(width = 6.dp, height = 10.dp),
+                soundLevel = soundLevel,
             )
 
             Spacer(Modifier.height(24.dp))

@@ -42,6 +42,18 @@ interface AsrEngine {
     val state: StateFlow<AsrState>
 
     /**
+     * How loud the microphone is right now, 0f..1f, or 0f when not listening.
+     *
+     * Exists so the mascot can breathe with the speaker's voice rather than on a timer. A mascot
+     * that animates while the room is silent is decoration; one that moves when *you* talk is
+     * feedback, and it is the only signal on the voice screen that proves the mic is live.
+     *
+     * Normalised and smoothed by the implementation, because the consumer is an animation and raw
+     * per-block RMS jitters far too fast to read as breathing.
+     */
+    val inputLevel: StateFlow<Float>
+
+    /**
      * Fetches and loads the recognition model if needed. Idempotent, never throws; failures
      * land in [state]. The first call on a fresh phone is a ~160MB download, which is why the
      * state carries progress instead of being a boolean.

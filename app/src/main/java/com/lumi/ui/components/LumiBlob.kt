@@ -71,6 +71,18 @@ fun LumiBlob(
      * default reproduces the original near-circular pair and every other call site is unchanged.
      */
     eyeSize: DpSize = DpSize(width = 5.dp, height = 6.dp),
+    /**
+     * Live sound level, 0f..1f, driving how far the body expands. 0f is the resting silhouette.
+     *
+     * This is the voice screen's proof that the microphone is live: a mascot that pulses on a timer
+     * is decoration, one that swells when *you* speak is feedback. Fed from the ASR engine's input
+     * level while listening, and from a synthetic pulse while Lumi speaks — see the call site.
+     *
+     * **Deliberately not gated on [LocalMotionEnabled].** Reduced motion suppresses idle decoration,
+     * and this is not decoration: with motion off it is the only remaining indication that the mic is
+     * hearing something, and the phase label beside it carries the same information in words.
+     */
+    soundLevel: Float = 0f,
 ) {
     // Every idle animation below is gated on this. False means reduced motion, battery saver, or the
     // app is off screen — see LocalMotionEnabled. When it is false the mascot holds its resting pose
@@ -120,6 +132,19 @@ fun LumiBlob(
         },
         animationSpec = tween(durationMillis = LumiMotion.BREATH_MS, easing = EaseInOutSine),
         label = "BlobScale"
+    )
+
+    /**
+     * Voice expansion, composed on top of [scale] rather than replacing it, so it rides the
+     * breathing instead of fighting it — the same reasoning as the double-tap bounce below.
+     *
+     * Its own short spring, because the sound level it follows already arrives smoothed at ~64ms
+     * intervals; a long animation here would lag behind the voice and read as unrelated motion.
+     */
+    val voiceExpansion by animateFloatAsState(
+        targetValue = 1f + soundLevel.coerceIn(0f, 1f) * VOICE_EXPANSION_RANGE,
+        animationSpec = tween(durationMillis = LumiMotion.QUICK_MS, easing = EaseInOutSine),
+        label = "BlobVoice",
     )
 
     val offsetY = if (animate) infiniteTransition.animateFloat(
@@ -294,7 +319,7 @@ fun LumiBlob(
     Box(
         modifier = modifier
             .offset(x = finalOffsetX.dp, y = offsetY.dp)
-            .scale(scale * bounce.value)
+            .scale(scale * bounce.value * voiceExpansion)
             .semantics {
                 contentDescription = MASCOT_DESCRIPTION
                 // The tap gesture below replaces `clickable`, which would swallow the double tap. This
@@ -567,6 +592,14 @@ private fun SleepingZ(
 /** The double-tap bounce: how big, and how fast the growth is. The settle is a spring. */
 private const val BOUNCE_PEAK = 1.18f
 private const val BOUNCE_UP_MS = 110
+
+/**
+ * How much a full-volume voice grows the mascot, on top of its breathing.
+ *
+ * 0.30 is a third larger at full scale — clearly alive without the body escaping the glow aura,
+ * which sits at 1.2x and would be overrun by anything much bigger.
+ */
+private const val VOICE_EXPANSION_RANGE = 0.30f
 
 /**
  * How far a blink and a squint close the eye, as a share of its open height.

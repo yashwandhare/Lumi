@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
+import android.util.Log
 import com.k2fsa.sherpa.onnx.FeatureConfig
 import com.k2fsa.sherpa.onnx.OfflineModelConfig
 import com.k2fsa.sherpa.onnx.OfflineRecognizer
@@ -15,6 +16,7 @@ import com.k2fsa.sherpa.onnx.OfflineWhisperModelConfig
 import com.k2fsa.sherpa.onnx.SileroVadModelConfig
 import com.k2fsa.sherpa.onnx.Vad
 import com.k2fsa.sherpa.onnx.VadModelConfig
+import com.lumi.BuildConfig
 import com.lumi.core.ai.AsrModels
 import com.lumi.core.voice.AsrEngine
 import com.lumi.core.voice.AsrSessionResult
@@ -75,6 +77,9 @@ class SherpaAsrEngine @Inject constructor(
 
     private val _state = MutableStateFlow<AsrState>(AsrState.Idle)
     override val state: StateFlow<AsrState> = _state.asStateFlow()
+
+    private val _inputLevel = MutableStateFlow(0f)
+    override val inputLevel: StateFlow<Float> = _inputLevel.asStateFlow()
 
     private val lock = Mutex()
 
@@ -215,7 +220,19 @@ class SherpaAsrEngine @Inject constructor(
         fun submitSegment(samples: FloatArray) {
             decoder.execute {
                 try {
+                    val startedMs = System.currentTimeMillis()
                     val text = cleanText(decodeSegment(offlineRecognizer, samples))
+                    if (BuildConfig.DEBUG) {
+                        // The two numbers that matter for perceived lag: how much audio this segment
+                        // held, and how long Whisper took on it. A decode slower than the audio it
+                        // covers means the transcript cannot keep up and VAD_MAX_SPEECH_S is the
+                        // lever — see decisions_devb.md's reversal condition.
+                        val audioMs = samples.size * 1_000L / AsrModels.SAMPLE_RATE
+                        Log.d(
+                            TAG,
+                            "segment audio=${audioMs}ms decode=${System.currentTimeMillis() - startedMs}ms",
+                        )
+                    }
                     if (text.isNotEmpty()) {
                         val joined = synchronized(transcript) {
                             if (transcript.isNotEmpty()) transcript.append(' ')
@@ -238,14 +255,22 @@ class SherpaAsrEngine @Inject constructor(
                 val read = recorder.read(mic, 0, mic.size, AudioRecord.READ_BLOCKING)
                 if (read < 0) break
                 if (read > 0) {
+                    publishLevel(mic, read)
                     vadInstance.acceptWaveform(if (read == mic.size) mic else mic.copyOf(read))
                 }
 
                 // A segment is closed speech — hand it off at once so its decode overlaps with
                 // whatever the user says next.
+                //
+                // **`lastSpeechMs` is deliberately not touched here.** A segment only becomes
+                // available after Silero has already observed `VAD_MIN_SILENCE_S` of quiet to
+                // decide the utterance ended, so by the time it pops, the speech stopped ~450ms
+                // ago. Restarting the end-of-turn timer at that moment stacked the two windows —
+                // 450ms of VAD silence and then a further 900ms — so every turn waited about 1.35s
+                // after the user stopped talking before anything was sent. The timer below measures
+                // from genuine voice activity only, which is the thing it is supposed to measure.
                 while (!vadInstance.empty()) {
                     heardSpeech = true
-                    lastSpeechMs = System.currentTimeMillis()
                     val segment = vadInstance.front()
                     vadInstance.pop()
                     submitSegment(segment.samples)
@@ -275,6 +300,7 @@ class SherpaAsrEngine @Inject constructor(
                 submitSegment(segment.samples)
             }
         } finally {
+            _inputLevel.value = 0f
             drain(decoder)
         }
 
@@ -288,8 +314,7 @@ class SherpaAsrEngine @Inject constructor(
     }
 
     /** One Whisper pass over one closed utterance. */
-    private fun decodeSegment(offlineRecognizer: OfflineRecognizer, samples: FloatArray): String {
-        val stream: OfflineStream = offlineRecognizer.createStream()
+    private fun decodeSegment(offlineRecognizer: OfflineRecognizer, samples: FloatArray): String {        val stream: OfflineStream = offlineRecognizer.createStream()
         return try {
             stream.acceptWaveform(samples, AsrModels.SAMPLE_RATE)
             offlineRecognizer.decode(stream)
@@ -299,9 +324,34 @@ class SherpaAsrEngine @Inject constructor(
         }
     }
 
+    /**
+     * Publish how loud this block was, 0f..1f, for the mascot to breathe with.
+     *
+     * RMS rather than peak: peak tracks a single click and makes the mascot twitch, RMS tracks how
+     * much energy the block carried and reads as speech. The scale is deliberately generous — normal
+     * speech sits well below 1.0 RMS, so [LEVEL_FULL_SCALE_RMS] maps a comfortable speaking voice to
+     * most of the range instead of leaving the mascot barely moving.
+     *
+     * Smoothed asymmetrically: fast to rise, slow to fall. Attacking quickly makes the mascot feel
+     * responsive to a word starting, while decaying slowly stops it collapsing in the gaps between
+     * syllables — which at 64ms a block it otherwise would, several times per word.
+     */
+    private fun publishLevel(frames: FloatArray, count: Int) {
+        if (count <= 0) return
+        var sumSquares = 0.0
+        for (i in 0 until count) {
+            val sample = frames[i]
+            sumSquares += sample * sample
+        }
+        val rms = kotlin.math.sqrt(sumSquares / count).toFloat()
+        val target = (rms / LEVEL_FULL_SCALE_RMS).coerceIn(0f, 1f)
+        val previous = _inputLevel.value
+        val smoothing = if (target > previous) LEVEL_ATTACK else LEVEL_DECAY
+        _inputLevel.value = previous + (target - previous) * smoothing
+    }
+
     /** Wait for every queued decode; bounded so a hung segment cannot strand the session. */
-    private fun drain(executor: ExecutorService) {
-        executor.shutdown()
+    private fun drain(executor: ExecutorService) {        executor.shutdown()
         executor.awaitTermination(DRAIN_TIMEOUT_MS, TimeUnit.MILLISECONDS)
         executor.shutdownNow()
     }
@@ -327,18 +377,32 @@ class SherpaAsrEngine @Inject constructor(
             AudioFormat.ENCODING_PCM_FLOAT,
         ).takeIf { it > 0 } ?: return null
 
-        return try {
+        val recorder = try {
             AudioRecord(
-                MediaRecorder.AudioSource.MIC,
+                // VOICE_RECOGNITION rather than MIC. MIC applies whatever tuning the vendor thinks
+                // suits general recording — on Samsung that includes gain and noise processing aimed
+                // at voice memos, which distorts the spectrum a recogniser is trained on.
+                // VOICE_RECOGNITION is the source Android documents for exactly this job and asks the
+                // platform to leave the signal alone.
+                MediaRecorder.AudioSource.VOICE_RECOGNITION,
                 AsrModels.SAMPLE_RATE,
                 AudioFormat.CHANNEL_IN_MONO,
                 AudioFormat.ENCODING_PCM_FLOAT,
                 // Two chunks of headroom so a slow consumer skips a beat rather than an overrun.
                 (bufferBytes * 2).coerceAtLeast(MIC_BLOCK_SAMPLES * 4),
-            ).takeIf { it.state == AudioRecord.STATE_INITIALIZED }
+            )
         } catch (t: Throwable) {
-            null
+            return null
         }
+
+        // **An uninitialized recorder still holds the microphone, so it must be released.** Dropping
+        // the reference instead left the mic held by an object nothing could reach, so the first
+        // failed open made every later attempt fail too and the mic button became a coin flip.
+        if (recorder.state != AudioRecord.STATE_INITIALIZED) {
+            recorder.release()
+            return null
+        }
+        return recorder
     }
 
     private fun createRecognizer(): OfflineRecognizer {
@@ -408,27 +472,59 @@ class SherpaAsrEngine @Inject constructor(
     }
 
     private companion object {
+        const val TAG = "LumiAsr"
+
         /**
-         * 128ms of 16kHz audio per mic read, a multiple of the VAD window so every sample goes
-         * straight to the voice detector without a leftover buffer to manage.
+         * RMS that maps to a fully-expanded mascot. Measured on the demo device: a quiet room sits
+         * near 0.01 and a normal speaking voice at arm's length peaks around 0.15, so this puts
+         * ordinary speech across most of the range rather than in the bottom tenth of it.
          */
-        const val MIC_BLOCK_SAMPLES = 2_048
+        const val LEVEL_FULL_SCALE_RMS = 0.15f
+
+        /** Fast rise, slow fall — see [publishLevel]. */
+        const val LEVEL_ATTACK = 0.6f
+        const val LEVEL_DECAY = 0.15f
+
+        /**
+         * 64ms of 16kHz audio per mic read, a multiple of the VAD window so every sample goes
+         * straight to the voice detector without a leftover buffer to manage.
+         *
+         * Halved from 128ms to cut latency: the loop can only notice that speech ended, and close a
+         * segment, on a read boundary, so the block length is a floor under every reaction time in
+         * this loop. 64ms is still two VAD windows per read, so the detector is not starved.
+         */
+        const val MIC_BLOCK_SAMPLES = 1_024
 
         /** Silero's analysis window at 16kHz — the library's fixed contract, in samples. */
         const val VAD_WINDOW_SAMPLES = 512
 
         const val VAD_THRESHOLD = 0.5f
 
-        /** Silence shorter than this does not end an utterance: real speakers pause. */
-        const val VAD_MIN_SILENCE_S = 0.45f
+        /**
+         * Silence shorter than this does not end an utterance: real speakers pause.
+         *
+         * 0.30s rather than 0.45s. This is the dominant term in perceived lag — it is paid on every
+         * single utterance, before the decode even starts. 300ms is still longer than the gaps
+         * inside connected speech, and a mid-sentence split is not a correctness problem here
+         * anyway: segments are concatenated into one transcript, so the cost of splitting early is
+         * an extra short decode, not a lost word.
+         */
+        const val VAD_MIN_SILENCE_S = 0.30f
 
         const val VAD_MIN_SPEECH_S = 0.25f
 
         /** Utterances longer than this are split, so every decode stays short and fast. */
         const val VAD_MAX_SPEECH_S = 8f
 
-        /** Session closes this long after the last utterance ends. */
-        const val END_SILENCE_MS = 900L
+        /**
+         * Session closes this long after voice activity stops.
+         *
+         * Measured from real speech, not from a segment popping — see the note in the capture loop,
+         * where restarting this timer on a pop was silently adding [VAD_MIN_SILENCE_S] on top of it.
+         * With that double-count gone, this is the only end-of-turn wait, so it can be short: the
+         * VAD has already confirmed the speaker stopped before this timer runs out.
+         */
+        const val END_SILENCE_MS = 500L
 
         /** A tap with no speech at all closes the session rather than listening forever. */
         const val IDLE_TIMEOUT_MS = 7_000L

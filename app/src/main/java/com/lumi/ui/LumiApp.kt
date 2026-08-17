@@ -93,11 +93,17 @@ fun LumiApp(
     val chatTurns by chatViewModel.turns.collectAsStateWithLifecycle()
     val chatGenerating by chatViewModel.generating.collectAsStateWithLifecycle()
     val liveMascot by chatViewModel.liveMascot.collectAsStateWithLifecycle()
+    val voiceTurnActive by chatViewModel.voiceTurnActive.collectAsStateWithLifecycle()
 
     // Docked only during a conversation on Home, and only if the user wants a live mascot. On the
     // empty Home screen it is still the centrepiece, so duplicating it in the bar would be two of it.
+    //
+    // **Never while voice mode is up.** The voice screen's whole subject is one large mascot in the
+    // middle; a second miniature of the same character in the corner reads as a duplicate rather
+    // than as a status, and the two animate independently, which makes it obvious they are two.
     val dockMascot = liveMascot &&
         chatTurns.isNotEmpty() &&
+        !voiceTurnActive &&
         currentRoute == LumiDestination.HOME.route
 
     androidx.compose.runtime.CompositionLocalProvider(androidx.compose.ui.platform.LocalLayoutDirection provides androidx.compose.ui.unit.LayoutDirection.Rtl) {

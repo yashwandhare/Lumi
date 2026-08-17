@@ -53,6 +53,8 @@ fun HomeScreen(
     val thinkingVerb by viewModel.thinkingVerb.collectAsStateWithLifecycle()
     val listening by viewModel.listening.collectAsStateWithLifecycle()
     val voiceTurnActive by viewModel.voiceTurnActive.collectAsStateWithLifecycle()
+    val inputLevel by viewModel.inputLevel.collectAsStateWithLifecycle()
+    val speaking by viewModel.speaking.collectAsStateWithLifecycle()
     val pendingIntent by viewModel.pendingIntent.collectAsStateWithLifecycle()
 
     val context = LocalContext.current
@@ -97,13 +99,16 @@ fun HomeScreen(
 
     val conversationStarted = turns.isNotEmpty()
 
-    // Which voice phase the overlay shows. The listening value wins while the mic is live;
-    // after the spoken send, thinking while the model works and speaking while TTS delivers.
+    // Which voice phase the overlay shows. Voice mode itself is the outer condition — it persists
+    // across turns now, so the phase is what Lumi is doing *within* it, and the fall-through is
+    // Listening rather than null: between a finished reply and the mic reopening there is a short
+    // settle window, and showing nothing there would flash the chat screen mid-conversation.
     val voicePhase = when {
+        !voiceTurnActive -> null
         listening != null -> VoicePhase.LISTENING
-        voiceTurnActive && generating -> VoicePhase.THINKING
-        voiceTurnActive -> VoicePhase.SPEAKING
-        else -> null
+        generating -> VoicePhase.THINKING
+        speaking -> VoicePhase.SPEAKING
+        else -> VoicePhase.LISTENING
     }
 
     Box(
@@ -216,9 +221,21 @@ fun HomeScreen(
                     VoicePhase.LISTENING -> listening.orEmpty()
                     else -> ""
                 },
+                // The mascot breathes with the real microphone level while listening. While Lumi
+                // speaks there is no level to read — Android's TTS exposes no amplitude — so it
+                // holds a steady partial expansion instead of faking a waveform it cannot measure.
+                soundLevel = when (phase) {
+                    VoicePhase.LISTENING -> inputLevel
+                    VoicePhase.SPEAKING -> SPEAKING_EXPANSION
+                    VoicePhase.THINKING -> 0f
+                },
                 onCancel = {
                     when (phase) {
-                        VoicePhase.LISTENING -> viewModel.stopVoiceSession()
+                        // Stopping while listening is how the user leaves voice mode: the mode no
+                        // longer ends itself, so this is the way out. Stopping a reply or the
+                        // speaker only ends that turn — the mic reopens and the conversation
+                        // continues.
+                        VoicePhase.LISTENING -> viewModel.exitVoiceMode()
                         VoicePhase.THINKING -> viewModel.stop()
                         VoicePhase.SPEAKING -> viewModel.stopSpeaking()
                     }
@@ -412,7 +429,13 @@ private fun ConsentRow(
                 )
                 Text(
                     detail,
-                    style = MaterialTheme.typography.bodySmall,
+                    // Sans-serif, unlike the serif label above it. The serif face carries Lumi's
+                    // voice; this line is a plain factual note about what the switch does, and the
+                    // sans face is what marks it as secondary rather than shrinking the serif until
+                    // it stops being readable.
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontFamily = androidx.compose.ui.text.font.FontFamily.SansSerif,
+                    ),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -450,3 +473,13 @@ fun AttachmentOption(icon: ImageVector, label: String, modifier: Modifier = Modi
         }
     }
 }
+
+/**
+ * How far the mascot sits expanded while Lumi is speaking.
+ *
+ * A held value, not an animation. Android's `TextToSpeech` reports no amplitude — there is no
+ * waveform to read — so the mascot holds a steady partial expansion rather than pulsing to a
+ * rhythm invented in the UI. Faking a waveform would be a lie about what the app can measure, and
+ * the "Speaking" label carries the state in words regardless.
+ */
+private const val SPEAKING_EXPANSION = 0.45f

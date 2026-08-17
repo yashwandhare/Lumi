@@ -145,41 +145,54 @@ class ChatViewModel @Inject constructor(
     val pendingIntent: StateFlow<PendingIntent?> = _pendingIntent.asStateFlow()
 
     /**
-     * True while a voice turn is live — from the spoken send through the reply being spoken.
-     * The voice UI anchors on this: once the transcript is flowing and the mascot's voice is
-     * done, the overlay gives the room back. Cleared by a typed send or a new conversation.
+     * True while the user is in voice mode — from the mic tap until they leave it deliberately.
+     *
+     * **Voice mode does not end itself.** It used to clear as soon as nothing was generating or
+     * speaking, which meant one spoken question dropped the user back into the chat screen and the
+     * mic had to be tapped again for every turn. Voice-first is the product's identity, so voice is a
+     * *mode*: Lumi answers, then listens again, and the loop continues until the user stops it. The
+     * only things that end it are [exitVoiceMode], a typed send, and a new conversation.
      */
     private val _voiceTurnActive = MutableStateFlow(false)
     val voiceTurnActive: StateFlow<Boolean> = _voiceTurnActive.asStateFlow()
 
+    /** Microphone level while listening, 0f..1f. The voice mascot expands with it. */
+    val inputLevel: StateFlow<Float> = asr.inputLevel
+
     init {
-        // The voice overlay ends itself when there is nothing left to do: not generating and
-        // not speaking. Doing this here, in one place, keeps the overlay's exit condition from
-        // being a guess scattered across the UI.
-        //
-        // **The settle delay is what makes it correct.** Generation finishing and speech starting
-        // are not simultaneous: `flushSpeech` queues the last sentence, then the TTS engine reports
-        // `speaking` only once it has actually begun. For that gap both flags read false, and the
-        // previous version took that single idle sample as the end of the turn — so the overlay
-        // closed the instant the model stopped writing and dropped the user into the chat screen
-        // while the reply was still to be read aloud.
-        //
-        // `collectLatest` gives the delay for free: if either flag goes busy again while the timer
-        // is running, this block is cancelled before it can end the turn. That is `debounce`'s
-        // behaviour without depending on a preview API.
+        // Re-arm the microphone once a turn is fully finished, so a conversation can continue
+        // hands-free. The settle delay is what makes this safe rather than a feedback loop:
+        // `speaking` drops between queued TTS chunks, and re-opening the mic in one of those gaps
+        // would have Lumi transcribe its own voice. Requiring the idle state to *hold* for
+        // VOICE_TURN_SETTLE_MS — which `collectLatest` gives for free, since a new emission cancels
+        // the pending block — means the mic only reopens once the reply has genuinely stopped.
         viewModelScope.launch {
             combine(_generating, speaker.speaking) { generating, speaking ->
                 generating || speaking
             }.collectLatest { busy ->
-                if (!busy && _voiceTurnActive.value) {
-                    delay(VOICE_TURN_SETTLE_MS)
-                    _voiceTurnActive.value = false
+                if (busy) return@collectLatest
+                delay(VOICE_TURN_SETTLE_MS)
+                if (_voiceTurnActive.value && listeningJob?.isActive != true) {
+                    startListening()
                 }
             }
         }
     }
 
+    /**
+     * Enter voice mode and start listening. The mode persists across turns; see [_voiceTurnActive].
+     */
     fun startVoiceSession() {
+        if (generation?.isActive == true) return
+        _voiceTurnActive.value = true
+        startListening()
+    }
+
+    /**
+     * One listening pass. Called on entering voice mode and again after each reply finishes, so a
+     * spoken conversation continues without the user reaching for the mic every turn.
+     */
+    private fun startListening() {
         if (listeningJob?.isActive == true || generation?.isActive == true) return
         speaker.stop()
 
@@ -189,6 +202,9 @@ class ChatViewModel @Inject constructor(
                 // prepare() recorded why in its state; the UI renders it. The honest fallback
                 // is typed input, not a mic button that silently does nothing.
                 _listening.value = null
+                // A model that cannot load will not load on the next lap either, so leave the mode
+                // rather than spinning the mic open and shut behind an error the user cannot act on.
+                _voiceTurnActive.value = false
                 return@launch
             }
 
@@ -205,6 +221,10 @@ class ChatViewModel @Inject constructor(
                             detail = "Recognised on-device, no network.",
                         )
                         send(transcript, origin = InteractionOrigin.VOICE)
+                    } else if (_voiceTurnActive.value) {
+                        // Heard nothing worth sending. Listen again rather than dropping the user
+                        // out of voice mode for pausing too long before speaking.
+                        startListening()
                     }
                 }
                 is AsrSessionResult.Cancelled -> {
@@ -214,6 +234,8 @@ class ChatViewModel @Inject constructor(
                 is AsrSessionResult.Failed -> {
                     _listening.value = null
                     recordVoiceSession(AuditOutcome.FAILURE, detail = result.reason)
+                    // Same reasoning as a failed prepare: surface it instead of looping on it.
+                    _voiceTurnActive.value = false
                 }
             }
         }
@@ -230,6 +252,16 @@ class ChatViewModel @Inject constructor(
         listeningJob?.cancel()
         listeningJob = null
         _listening.value = null
+    }
+
+    /**
+     * Leave voice mode entirely, at the user's request. The one way out, since the mode no longer
+     * ends itself: stop the mic, stop the speaker, and close the overlay.
+     */
+    fun exitVoiceMode() {
+        _voiceTurnActive.value = false
+        stopVoiceSession()
+        stopSpeaking()
     }
 
     /** Silences a reply already being read. Separate from [stop] because generation is done by then. */
