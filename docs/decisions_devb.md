@@ -296,3 +296,54 @@ why a concurrent dismissal cannot resurrect a repeating reminder.
 
 **Reversal condition.** If a reminder ever needs a trigger an instant cannot express (a wifi
 name, a location), it should become a routine at creation time, not grow a trigger column here.
+
+## 2026-08-22 — A bare spoken hour means its nearest upcoming face
+
+**Decision.** "Remind me at six" with no am/pm attached resolves to whichever of 06:00 or
+18:00 comes round next. Said at ten in the morning it means the evening; said at seven in the
+evening it means tomorrow morning. An explicit "am", "pm", or a period word ("six in the
+evening") overrides this and pins the half-day exactly as before.
+
+**Why.** The previous reading took the hour's face value literally — "at six" was always
+06:00, rolling to tomorrow once past. That is defensible as clock arithmetic but wrong as
+intent: nobody saying "remind me at six" over lunch means a dawn alarm, and the demo
+phrasebook leans on exactly this sentence. Nearest-upcoming is also what every mainstream
+assistant does with ambiguous hours.
+
+**The both-faces-past edge stays simple on purpose.** "At six" said at seven in the evening
+rolls to tomorrow's earlier face (06:00), because that is the next time a watch reads six.
+A kinder-but-cleverer rule (assume the speaker meant the evening face) guesses; this one does
+not. If real use shows people meaning the evening face after dark, that is the reversal point:
+add the preference to `nearestFace`, not to the storage model.
+
+## 2026-08-22 — The widget renders from Room directly and refreshes on mutation
+
+**Decision.** The Glance widget has no state store of its own. Every render reads the
+`reminders` table through an entry point, and every code path that changes that table calls
+`refreshRemindersWidget`.
+
+**Why no widget state.** A second copy of the data is a second place to disagree with the list
+screen. Reading Room inside `provideGlance` costs one indexed query per render — trivial at
+personal scale — and makes "widget matches app" true by construction rather than by discipline.
+
+**Known staleness window, stated honestly:** capture happens in chat, which cannot reach the
+refresh helper without dragging a Context into the capability (and out of JVM testability).
+So a reminder set by voice while staring at the widget updates it within one sweep interval
+(≤15 min) or on next app open, not instantly. Fires, completions, dismissals, and boot all
+refresh immediately. Closing that window properly needs a process-safe observer of the table
+(a Room invalidation API or a shared flow behind an interface Dev A owns); deferred until
+someone actually feels the gap.
+
+## 2026-08-22 — Both exact-alarm permissions are declared, and denial degrades instead of blocking
+
+**Decision.** The manifest declares `SCHEDULE_EXACT_ALARM` (governs API 31–32, granted by
+default there) and `USE_EXACT_ALARM` (governs 33+, granted automatically to apps whose core
+function is alarms — reminders are core feature #2). When neither holds anyway,
+`AlarmScheduler.arm` falls back to an inexact alarm and the periodic sweep bounds the delay;
+nothing asks twice, nothing blocks creation.
+
+**Why not SCHEDULE_EXACT_ALARM alone.** On Android 14+ it is denied by default for new
+installs, so without USE_EXACT_ALARM every reminder on this demo device would silently ride
+the sweep. Why not USE_EXACT_ALARM alone: it covers only 33+, and minSdk is 31. Play policy
+restricts USE_EXACT_ALARM to alarm/calendar-core apps — Lumi qualifies, and the hackathon build
+is sideloaded regardless.

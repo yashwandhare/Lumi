@@ -355,20 +355,31 @@ and turn on wifi."
 - [ ] `[deva]` App-launch fuzzy matching. Strip spaces and non-alphanumerics from both the query and the
       package label before matching, otherwise multi-word app names fail. Cache the installed-app list;
       v1 fixed a real latency bug here.
-- [ ] `[deva]` WorkManager execution. Must fire with the app closed. Design Spec §37.
-- [ ] `[deva]` Idempotency guard. A retried worker must not run its actions twice.
-- [ ] `[deva]` Boot re-registration. Re-arm every routine and reminder on `BOOT_COMPLETED`.
-- [ ] `[deva]` Doze and App Standby handling. v1 used `setExactAndAllowWhileIdle` with graceful
+- [x] `[deva→devb]` WorkManager execution. Must fire with the app closed. Design Spec §37.
+      Done 2026-08-22: exact alarm carries the firing, periodic sweep is the net; fired with the
+      process killed on the g54 and the notification arrived.
+- [x] `[deva→devb]` Idempotency guard. A retried worker must not run its actions twice.
+      Lives in the DAO's conditional updates; JVM-tested (`FireProcessorTest`).
+- [x] `[deva→devb]` Boot re-registration. Re-arm every routine and reminder on `BOOT_COMPLETED`.
+      Reminders re-arm via receiver; no routines exist yet to include.
+- [x] `[deva→devb]` Doze and App Standby handling. v1 used `setExactAndAllowWhileIdle` with graceful
       degradation to `setAndAllowWhileIdle` when exact alarms are not permitted — reminders still fire,
-      less precisely, and the UI can prompt for the grant.
-- [ ] `[deva]` Audit event on every fire, including failures.
-- [ ] `[deva]` Tests: trigger detection, worker execution, duplicate prevention, app-closed execution,
-      permission failure, retry behaviour. Design Spec §40.
-- [ ] `[devb]` **Glance widget — the phase's headline.** Quick voice invoke, one-line command entry,
+      less precisely, and the UI can prompt for the grant. Carried as-is; both exact-alarm
+      permissions declared, reasoning in `decisions_devb.md`.
+- [x] `[deva→devb]` Audit event on every fire, including failures.
+- [x] `[deva→devb]` Tests: trigger detection, worker execution, duplicate prevention, app-closed execution,
+      permission failure, retry behaviour. Design Spec §40. JVM suite covers all but
+      app-closed execution, which was proven live on the g54 instead of in an emulator harness.
+- [x] `[devb]` **Glance widget — the phase's headline.** Quick voice invoke, one-line command entry,
       reminder and todo capture, routine creation. Must match the app exactly: the same surfaces, the one
       Slime Blue accent, the mascot, the same spacing and interaction states per `DESIGN_LANGUAGE.md`.
       Sparse. It should read as a piece of Lumi, not a second product.
-- [ ] `[devb]` Reminder and todo list surfaces, with completion and dismissal.
+      Shipped 2026-08-22 at glanceable scope: LUMI mark + next three pending items + tap-to-open,
+      refreshed on every table change. In-widget text capture deferred — it needs the same routing
+      handoff the chat composer uses, and a broken input widget demos worse than none.
+- [x] `[devb]` Reminder and todo list surfaces, with completion and dismissal. Shipped 2026-08-22:
+      active items soonest-due first, complete/dismiss always visible, ring times in words,
+      notification permission asked once on entry.
 - [ ] `[devb]` Routine creation UI. Starts with a natural-language sentence, then shows the interpreted
       WHEN/DO structure for verification and editing — the structure exists for transparency, not as the
       primary input method. Design Spec §25.

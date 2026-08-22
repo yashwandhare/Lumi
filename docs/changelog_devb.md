@@ -22,12 +22,32 @@ in yet — if it is empty, everything is already in the main log.
 ## Unreleased
 
 ### Added
+- [devb] 2026-08-22 — Reminders now execute. A confirmed reminder arms an exact alarm
+  (`setExactAndAllowWhileIdle`, degrading to inexact when the grant is absent) and fires with
+  the app closed as a heads-up notification; a periodic worker sweep catches anything an alarm
+  missed, and every pending reminder re-arms itself after reboot. Every fire writes an audit
+  entry, including failures, with what to do about them. Verified end to end on the g54:
+  reminder set by voice, app killed, notification arrived.
+- [devb] 2026-08-22 — Reminders screen (was an empty state): everything not yet cleared,
+  soonest due first, each row with complete and dismiss always visible and the ring time in
+  words ("Rang today at 1:49 PM"). The notification permission is asked here, once, on API 33+.
+- [devb] 2026-08-22 — A confirmed reminder or todo renders inline in the transcript as a card
+  — title it will carry, when it rings — instead of only a confirmation sentence.
+- [devb] 2026-08-22 — Glance home-screen widget: LUMI mark plus the next three pending items,
+  one tap opens the app. Reads straight from Room at render time and refreshes after every
+  change to the reminders table, so it cannot disagree with the list screen.
 - [devb] 2026-08-18 — Phase 3 data model: the `reminders` table (schema v3), one table for
   reminders and todos alike, split only by a kind column. `dueAtMs` is the sole trigger for a
   reminder — "remind me at 6" stays a plain row and never becomes a routine graph. Every
   status change is a conditional `UPDATE` returning the rows touched, so a retried worker can
   never notify twice and a dismissal wins any race with firing. Migration 2→3 is additive and
   covered, along with the DAO invariants, by new instrumented tests.
+
+### Changed
+- [devb] 2026-08-22 — A bare spoken hour means its nearest upcoming face: "remind me at six"
+  said in the afternoon now rings at six that evening rather than at dawn tomorrow. An
+  explicit "am", "pm", or period word still overrides the reading entirely. Reasoning and
+  reversal condition in `decisions_devb.md`.
 - [devb] 2026-08-16 — Whisper base.en (int8) replaces the 20M streaming zipformer as the
   recognition model — on-device testing showed the old model could not reliably transcribe
   everyday sentences, and the owner ruled recognition quality cannot be compromised. Download is
