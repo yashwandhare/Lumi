@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.util.Log
+import com.lumi.ui.widget.refreshRemindersWidget
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -38,7 +39,11 @@ class ReminderReceiver : BroadcastReceiver() {
             try {
                 when (intent.action) {
                     Intent.ACTION_BOOT_COMPLETED -> scheduler.rearmPending()
-                    else -> fireProcessor.fireDue(System.currentTimeMillis())
+                    else -> {
+                        fireProcessor.fireDue(System.currentTimeMillis())
+                        // A fire changes what "next up" means on the home screen.
+                        refreshRemindersWidget(context)
+                    }
                 }
             } catch (t: Throwable) {
                 Log.e(TAG, "Reminder delivery failed", t)

@@ -123,6 +123,9 @@ dependencies {
     // sweeps for anything missed (reboot edge cases, Doze). Must fire with the app closed.
     implementation(libs.androidx.work.runtime)
 
+    // The home-screen widget, Phase 3's headline surface. Owner-approved dependency.
+    implementation(libs.androidx.glance.appwidget)
+
     // On-device inference. Pinned in the version catalogue, never latest.release — see decisions.md.
     implementation(libs.litertlm)
 

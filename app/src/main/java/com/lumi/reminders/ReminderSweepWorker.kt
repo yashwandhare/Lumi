@@ -3,6 +3,8 @@ package com.lumi.reminders
 import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import com.lumi.data.local.ReminderDao
+import com.lumi.ui.widget.refreshRemindersWidget
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
@@ -32,6 +34,7 @@ class ReminderSweepWorker(
 
         return try {
             processor.fireDue(System.currentTimeMillis())
+            refreshRemindersWidget(applicationContext)
             Result.success()
         } catch (t: Throwable) {
             // A database-level failure is transient more often than not; retry within
@@ -44,6 +47,9 @@ class ReminderSweepWorker(
     @InstallIn(SingletonComponent::class)
     interface RemindersEntryPoint {
         fun fireProcessor(): FireProcessor
+
+        /** Also read by the home-screen widget, which renders straight from Room. */
+        fun reminderDao(): ReminderDao
     }
 
     private companion object {

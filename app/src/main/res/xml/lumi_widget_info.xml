@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Lumi's home-screen widget. Small by default (2x2 cells): it holds the next few items and
+  nothing else — capture happens in the app. updatePeriodMs is the system's fallback cadence;
+  the app also refreshes the widget after every reminders-table change.
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="180dp"
+    android:minHeight="110dp"
+    android:targetCellWidth="3"
+    android:targetCellHeight="2"
+    android:updatePeriodMillis="1800000"
+    android:resizeMode="horizontal|vertical"
+    android:widgetCategory="home_screen" />
