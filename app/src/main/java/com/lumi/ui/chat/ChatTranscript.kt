@@ -19,6 +19,9 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Alarm
+import androidx.compose.material.icons.rounded.Checklist
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -34,6 +37,8 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import com.lumi.core.ai.GenerationMetrics
+import com.lumi.core.model.ReminderKind
+import com.lumi.ui.components.LumiCardRow
 import com.lumi.ui.components.MarkdownText
 import com.lumi.ui.theme.LocalMotionEnabled
 import com.lumi.ui.theme.LumiShape
@@ -155,6 +160,17 @@ private fun ModelTurn(turn: ChatTurn, thinkingVerb: String?) {
         // Before the first token there is nothing to show but the fact that something is happening.
         if (turn.streaming && turn.text.isEmpty()) {
             ThinkingLabel(verb = thinkingVerb ?: THINKING_VERBS.first())
+        } else if (turn.card != null) {
+            // A captured item reads as its own surface — the title is what will ring, the
+            // detail is when. The confirmation sentence above it stays plain text.
+            LumiCardRow(
+                title = turn.card.title,
+                detail = turn.card.detail,
+                icon = when (turn.card.kind) {
+                    ReminderKind.TODO -> Icons.Rounded.Checklist
+                    ReminderKind.REMINDER -> Icons.Rounded.Alarm
+                },
+            )
         } else {
             // Rendered as markdown, including mid-stream. Half-finished syntax is tolerated by the
             // parser — an unclosed `**` or an open fence just renders as text until its partner

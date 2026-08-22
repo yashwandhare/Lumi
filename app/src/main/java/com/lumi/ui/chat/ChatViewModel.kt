@@ -21,10 +21,15 @@ import com.lumi.core.voice.AsrEngine
 import com.lumi.core.voice.AsrSessionResult
 import com.lumi.core.voice.AsrState
 import com.lumi.core.voice.ReplySpeaker
+import com.lumi.core.model.ReminderKind
 import com.lumi.data.chat.ChatRepository
 import com.lumi.data.local.ChatEntity
 import com.lumi.data.settings.SettingsStore
 import com.lumi.di.ApplicationScope
+import com.lumi.reminders.ReminderFormat
+import com.lumi.reminders.ReminderTimeParser
+import com.lumi.reminders.ReminderTitle
+import com.lumi.router.RulesTier
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -291,7 +296,17 @@ class ChatViewModel @Inject constructor(
                 val result = dispatcher.dispatch(
                     CapabilityInput(intent = pending.intent, origin = origin)
                 )
-                updateLastModelTurn { it.copy(text = result.userMessage, streaming = false) }
+                updateLastModelTurn { current ->
+                    current.copy(
+                        text = result.userMessage,
+                        streaming = false,
+                        card = if (result is CapabilityResult.Ok) {
+                            turnCard(pending.intent)
+                        } else {
+                            null
+                        },
+                    )
+                }
             } catch (t: Throwable) {
                 updateLastModelTurn { current ->
                     current.copy(
@@ -306,6 +321,32 @@ class ChatViewModel @Inject constructor(
                 )
             }
         }
+    }
+
+    /**
+     * The card a captured item renders as, derived from the confirmed intent with the same
+     * pure helpers the capability itself used — so the card shows what was stored, not a
+     * rephrasing. The two parses run within a moment of each other and share one reading of
+     * "now" to the minute; a label straddling a minute boundary is cosmetic, not a wrong
+     * reminder. Cards decorate the live transcript only — reopening a conversation restores
+     * its text, which is the durable record.
+     */
+    private fun turnCard(intent: StructuredIntent): ChatTurnCard? {
+        if (intent.capability != CapabilityId.TOOLS) return null
+        val kind = when (intent[RulesTier.SLOT_KIND]) {
+            RulesTier.KIND_TODO -> ReminderKind.TODO
+            else -> ReminderKind.REMINDER
+        }
+        val utterance = intent.rawText.trim()
+        val due = ReminderTimeParser.parse(utterance, System.currentTimeMillis())
+        return ChatTurnCard(
+            title = ReminderTitle.clean(utterance, kind),
+            // A todo without a time is complete as stated; a reminder without one is missing
+            // what the user asked for and must say so.
+            detail = due?.let { ReminderFormat.dueLabel(it, System.currentTimeMillis()) }
+                ?: NO_TIME_LABEL.takeIf { kind == ReminderKind.REMINDER },
+            kind = kind,
+        )
     }
 
     /**
@@ -649,6 +690,7 @@ class ChatViewModel @Inject constructor(
     private companion object {
         const val EMPTY_REPLY = "Lumi had nothing to add to that."
         const val GENERATION_FAILED = "Lumi could not finish that reply. Try asking again."
+        const val NO_TIME_LABEL = "No time set"
 
         /**
          * How long generating and speaking must *both* stay false before a voice turn is over.
