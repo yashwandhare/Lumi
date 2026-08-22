@@ -16,6 +16,27 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
     <!--
+      Reminders (Phase 3): a reminder that cannot reach the user never happened.
+      POST_NOTIFICATIONS is requested at runtime from the reminders screen; a denied grant
+      degrades to an audit entry that says so rather than a silent miss.
+    -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!--
+      Exact alarms ring at the minute the user named, including through Doze. Both forms are
+      declared because both exist: SCHEDULE_EXACT_ALARM governs API 31-32 (granted by default),
+      USE_EXACT_ALARM governs 33+ where this app's core reminder function qualifies for the
+      automatic grant. When neither holds, arming falls back to an inexact alarm and the
+      periodic sweep bounds the delay — delivery degrades, it does not stop.
+    -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <!--
+      Alarms die with a shutdown. The boot receiver re-arms every pending reminder after
+      restart, so "remind me tomorrow" survives the phone being off overnight.
+    -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <!--
       The one network permission, and the only thing that uses it is the first-run model download.
       Every feature works with the network disabled (decisions.md), and the single deliberate
       exception — opt-in web search — is session-only and off by default.
@@ -60,6 +81,19 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!--
+          Reminder delivery (Phase 3). Not exported: the fire action arrives from Lumi's own
+          PendingIntent, and BOOT_COMPLETED is a protected broadcast only the system may send,
+          so nothing third-party can reach this receiver either way.
+        -->
+        <receiver
+            android:name=".reminders.ReminderReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>

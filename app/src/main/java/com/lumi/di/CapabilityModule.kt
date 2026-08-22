@@ -2,6 +2,7 @@ package com.lumi.di
 
 import com.lumi.core.Capability
 import com.lumi.core.ChatCapability
+import com.lumi.reminders.ReminderCapability
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -23,4 +24,9 @@ abstract class CapabilityModule {
     @IntoSet
     @Singleton
     abstract fun bindChatCapability(implementation: ChatCapability): Capability
+
+    @Binds
+    @IntoSet
+    @Singleton
+    abstract fun bindReminderCapability(implementation: ReminderCapability): Capability
 }

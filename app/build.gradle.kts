@@ -119,6 +119,10 @@ dependencies {
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
 
+    // Background execution for reminders: exact alarms carry the firing, and a periodic worker
+    // sweeps for anything missed (reboot edge cases, Doze). Must fire with the app closed.
+    implementation(libs.androidx.work.runtime)
+
     // On-device inference. Pinned in the version catalogue, never latest.release — see decisions.md.
     implementation(libs.litertlm)
 
