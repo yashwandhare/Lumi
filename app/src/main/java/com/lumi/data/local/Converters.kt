@@ -7,6 +7,8 @@ import com.lumi.core.model.CapabilityId
 import com.lumi.core.model.MemoryKind
 import com.lumi.core.model.MemorySource
 import com.lumi.core.model.MessageRole
+import com.lumi.core.model.ReminderKind
+import com.lumi.core.model.ReminderStatus
 import com.lumi.core.model.TriggerType
 
 /**
@@ -68,6 +70,20 @@ class Converters {
     @TypeConverter
     fun toAuditOutcome(value: String): AuditOutcome =
         enumValueOrDefault(value, AuditOutcome.FAILURE)
+
+    @TypeConverter
+    fun fromReminderKind(value: ReminderKind): String = value.name
+
+    @TypeConverter
+    fun toReminderKind(value: String): ReminderKind =
+        enumValueOrDefault(value, ReminderKind.REMINDER)
+
+    @TypeConverter
+    fun fromReminderStatus(value: ReminderStatus): String = value.name
+
+    @TypeConverter
+    fun toReminderStatus(value: String): ReminderStatus =
+        enumValueOrDefault(value, ReminderStatus.PENDING)
 
     /** Embeddings are small float arrays; storing them as a BLOB avoids a join per chunk. */
     @TypeConverter

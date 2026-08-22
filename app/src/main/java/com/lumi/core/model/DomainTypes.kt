@@ -47,6 +47,33 @@ enum class MemorySource {
 }
 
 /**
+ * What a reminder row is for.
+ *
+ * One table holds both because the list screen holds both: a reminder fires at a time, a
+ * todo is checked off. They share every other property, so a kind column keeps the model
+ * simple instead of doubling the schema.
+ */
+enum class ReminderKind {
+    REMINDER,
+    TODO,
+}
+
+/**
+ * Where a reminder row is in its life.
+ *
+ * [FIRED] records that the notification was shown — the idempotency point for the worker.
+ * A retried worker that sees [FIRED] (or better) must not notify again. Completion and
+ * dismissal are both ways of clearing the row from the active list; the list UI calls them
+ * "complete" and "dismiss" respectively.
+ */
+enum class ReminderStatus {
+    PENDING,
+    FIRED,
+    DONE,
+    DISMISSED,
+}
+
+/**
  * What starts a routine.
  *
  * Parsed once when the routine is created and then persisted. A firing routine reads its

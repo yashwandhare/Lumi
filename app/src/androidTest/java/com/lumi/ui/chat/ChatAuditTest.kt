@@ -3,6 +3,16 @@ package com.lumi.ui.chat
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.lumi.core.Capability
+import com.lumi.core.CapabilityInput
+import com.lumi.core.CapabilityResult
+import com.lumi.core.ChatCapability
+import com.lumi.core.InteractionOrigin
+import com.lumi.core.Router
+import com.lumi.core.RouterDecision
+import com.lumi.core.RouterOutcome
+import com.lumi.core.RouterTier
+import com.lumi.core.StructuredIntent
 import com.lumi.core.ai.GenerationMetrics
 import com.lumi.core.ai.GenerationRequest
 import com.lumi.core.ai.ModelHarness
@@ -11,10 +21,18 @@ import com.lumi.core.ai.SessionId
 import com.lumi.core.audit.AuditLog
 import com.lumi.core.model.AuditOutcome
 import com.lumi.core.model.CapabilityId
+import com.lumi.core.network.GateDecision
+import com.lumi.core.network.NetworkFeature
+import com.lumi.core.network.NetworkGate
 import com.lumi.core.settings.ModelBackend
+import com.lumi.core.voice.AsrEngine
+import com.lumi.core.voice.AsrSessionResult
+import com.lumi.core.voice.AsrState
+import com.lumi.core.voice.ReplySpeaker
 import com.lumi.data.chat.ChatRepository
 import com.lumi.data.local.LumiDatabase
 import com.lumi.data.settings.SettingsStore
+import com.lumi.router.dispatch.CapabilityDispatcher
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -45,8 +63,10 @@ import org.junit.runner.RunWith
  * This runs as an instrumented test rather than a JVM one because `ChatRepository` and `SettingsStore`
  * are concrete classes over Room and `SharedPreferences`. Faking them would mean adding a mocking
  * library or opening two classes purely for a test; using the real ones against an in-memory database
- * costs a device but tests the code that actually ships. Only [ModelHarness] is faked, and it is an
- * interface precisely so it can be.
+ * costs a device but tests the code that actually ships. The router, ASR, and speaker are faked because
+ * none of them is the subject of this test; the dispatcher is the real one so the audit contract under
+ * test — chat flows through the same dispatch path as every other capability — is exercised as shipped.
+ * Only [ModelHarness] and [NetworkGate] are also faked, each an interface precisely so it can be.
  *
  * The reason this exists at all: **the audit log is how the privacy claim is proved.** A log that says
  * a reply failed when the user stopped it, or that omits a turn entirely, is worse than no log — it
@@ -83,6 +103,18 @@ class ChatAuditTest {
             chats = ChatRepository(database.chatDao(), dispatcher),
             settings = SettingsStore(context),
             audit = audit,
+            asr = NoopAsrEngine(),
+            speaker = NoopReplySpeaker(),
+            router = AlwaysChatRouter(),
+            dispatcher = CapabilityDispatcher(
+                capabilities = setOf<Capability>(ChatCapability(harness)),
+                networkGate = object : NetworkGate {
+                    // Every intent here is CHAT, which the gate does not govern. Allowing is the
+                    // honest default for a feature that never touches the network.
+                    override suspend fun open(feature: NetworkFeature, subject: String?) =
+                        GateDecision.Allowed
+                },
+            ),
             applicationScope = CoroutineScope(dispatcher),
         )
     }
@@ -198,5 +230,36 @@ class ChatAuditTest {
             // Suspends forever until the test cancels it, which is what a real slow reply looks like.
             blockAfterEmitting?.await()
         }
+    }
+
+    /** Everything routes straight to chat — this test never exercises the intent surfaces. */
+    private class AlwaysChatRouter : Router {
+        override suspend fun route(text: String, origin: InteractionOrigin): RouterOutcome =
+            RouterOutcome.Routed(
+                RouterDecision(
+                    intent = StructuredIntent(capability = CapabilityId.CHAT, rawText = text),
+                    confidence = 1f,
+                    tier = RouterTier.RULES,
+                ),
+            )
+    }
+
+    /** Never ready, so the view model's init block observes a stable "not listening" state. */
+    private class NoopAsrEngine : AsrEngine {
+        override val state: StateFlow<AsrState> = MutableStateFlow(AsrState.Idle)
+        override val inputLevel: StateFlow<Float> = MutableStateFlow(0f)
+        override suspend fun prepare() = Unit
+        override suspend fun listen(onPartial: (String) -> Unit): AsrSessionResult =
+            AsrSessionResult.Cancelled
+        override fun cancel() = Unit
+    }
+
+    /** Speaks nothing; the audit subject here is the record, not the voice. */
+    private class NoopReplySpeaker : ReplySpeaker {
+        override val available: Boolean = false
+        override val speaking: StateFlow<Boolean> = MutableStateFlow(false)
+        override fun speak(text: String, queueAdd: Boolean) = Unit
+        override fun stop() = Unit
+        override fun shutdown() = Unit
     }
 }

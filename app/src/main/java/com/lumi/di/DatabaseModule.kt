@@ -7,6 +7,7 @@ import com.lumi.data.local.ChatDao
 import com.lumi.data.local.DocumentDao
 import com.lumi.data.local.JournalDao
 import com.lumi.data.local.MemoryDao
+import com.lumi.data.local.ReminderDao
 import com.lumi.data.local.RoutineDao
 import com.lumi.data.local.LumiDatabase
 import dagger.Module
@@ -32,7 +33,7 @@ object DatabaseModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): LumiDatabase =
         Room.databaseBuilder(context, LumiDatabase::class.java, LumiDatabase.NAME)
-            .addMigrations(LumiDatabase.MIGRATION_1_2)
+            .addMigrations(LumiDatabase.MIGRATION_1_2, LumiDatabase.MIGRATION_2_3)
             .build()
 
     @Provides
@@ -49,6 +50,9 @@ object DatabaseModule {
 
     @Provides
     fun provideJournalDao(database: LumiDatabase): JournalDao = database.journalDao()
+
+    @Provides
+    fun provideReminderDao(database: LumiDatabase): ReminderDao = database.reminderDao()
 
     @Provides
     fun provideAuditDao(database: LumiDatabase): AuditDao = database.auditDao()

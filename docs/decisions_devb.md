@@ -262,3 +262,37 @@ implementation to settle two open questions before tuning further:
 captured for the current build. If RTF > 1 (synthesis slower than playback), the pipeline
 stalls and no chunk-size or silence tuning fixes that; `NUM_THREADS` or model size would need
 revisiting. Owner needs to run `adb logcat -s LumiTts` during a test turn to unblock this.
+
+## 2026-08-18 — Reminder and todo live in one table, never as a routine graph
+
+**Decision.** Reminders and todos share a single `reminders` table (schema v3), distinguished
+only by a `kind` column. A reminder has a single `dueAtMs` instant — no trigger/action rows,
+no routine graph. The Phase 3 rule in `todo.md` is explicit: "remind me at 6 should not have to
+become a trigger/action graph to work." The routine tables stay untouched for the cases that
+genuinely need triggers beyond a clock.
+
+**Why one table and not two.** The list screen holds both; they share every property except a
+label. A second schema for todos would double the DAO surface and the migration churn for zero
+behavioural difference. `REMINDER` is the default when decoding an unknown kind on an older
+build, since a todo misread as a reminder still does the right thing (it has no `dueAtMs` to
+fire on).
+
+**The idempotency guard lives in the UPDATE, not the worker.** Every status change is a
+conditional query returning row-count: `markFired` only matches a `PENDING` row, and
+`markDone`/`markDismissed` only match non-terminal states. A WorkManager retry that races a
+user who just dismissed the reminder matches zero rows and never fires the notification. A
+guard in Kotlin would need a read-then-write with a window between them; a guard in SQL has no
+window. This is the "duplicate prevention" test the Phase 3 brief calls for, encoded where a
+retried worker cannot argue its way around it.
+
+**Never-due todos use `Long.MAX_VALUE`.** A todo with no due time sorts after every real date
+and is naturally skipped by `dueAtOrBefore`. Using NULL instead would have meant every worker
+query needs an `OR dueAtMs IS NULL` it never actually wants.
+
+**Repeats are resolved by the scheduler, not stored as state.** `repeatIntervalMs` is data;
+`reschedule` re-arms from `FIRED` to `PENDING` in one statement with the same conditional
+guard. Keeping it a single `UPDATE` (rather than delete+insert or a state machine in code) is
+why a concurrent dismissal cannot resurrect a repeating reminder.
+
+**Reversal condition.** If a reminder ever needs a trigger an instant cannot express (a wifi
+name, a location), it should become a routine at creation time, not grow a trigger column here.

@@ -29,8 +29,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         RoutineActionEntity::class,
         JournalEntryEntity::class,
         AuditEventEntity::class,
+        ReminderEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -42,6 +43,7 @@ abstract class LumiDatabase : RoomDatabase() {
     abstract fun memoryDao(): MemoryDao
     abstract fun journalDao(): JournalDao
     abstract fun auditDao(): AuditDao
+    abstract fun reminderDao(): ReminderDao
 
     companion object {
         const val NAME = "lumi.db"
@@ -57,6 +59,36 @@ abstract class LumiDatabase : RoomDatabase() {
         val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("DROP TABLE IF EXISTS emergency_contacts")
+            }
+        }
+
+        /**
+         * Adds the `reminders` table for Phase 3. Purely additive: no existing row is touched.
+         *
+         * Enums are stored as names per the `Converters` convention, so the migration writes
+         * TEXT columns with no default — every insert names its own kind and status.
+         */
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `reminders` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `kind` TEXT NOT NULL,
+                        `text` TEXT NOT NULL,
+                        `status` TEXT NOT NULL,
+                        `dueAtMs` INTEGER NOT NULL,
+                        `repeatIntervalMs` INTEGER,
+                        `createdAtMs` INTEGER NOT NULL,
+                        `updatedAtMs` INTEGER NOT NULL,
+                        `doneAtMs` INTEGER,
+                        `firedAtMs` INTEGER
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_reminders_dueAtMs` ON `reminders` (`dueAtMs`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_reminders_status` ON `reminders` (`status`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_reminders_kind` ON `reminders` (`kind`)")
             }
         }
     }

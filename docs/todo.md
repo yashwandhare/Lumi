@@ -332,8 +332,9 @@ Core item 2: **a widget that sets reminders and todos and builds routines, execu
 actions.** PRD §3.3's example is still the acceptance test: "When I get to college, put phone on silent
 and turn on wifi."
 
-- [ ] `[deva]` Reminder and todo data model. Simple and first-class, separate from the routine graph —
-      "remind me at 6" should not have to become a trigger/action graph to work.
+- [x] `[devb]` Reminder and todo data model. Simple and first-class, separate from the routine graph —
+      "remind me at 6" should not have to become a trigger/action graph to work. Shipped 2026-08-18:
+      one `reminders` table, status changes as conditional `UPDATE`s, migration 2→3, device-tested.
 - [ ] `[deva]` Routine data model: trigger plus action graph, persisted in structured form.
 - [ ] `[deva]` Natural language parsed to structure **at creation time only**. A firing routine reads its
       persisted structure and never re-interprets the original sentence. Design Spec §4.3.

@@ -64,6 +64,44 @@ class LumiDatabaseMigrationTest {
         assertEquals(1, v2.countRows("journal_entries"))
     }
 
+    @Test
+    fun migratingFromTwoToThreeAddsRemindersAndKeepsEverythingElse() {
+        helper.createDatabase(TEST_DB, 2).use { v2 ->
+            v2.execSQL(
+                "INSERT INTO chats (title, createdAtMs, updatedAtMs) VALUES ('kept', 1000, 1000)"
+            )
+            v2.execSQL(
+                "INSERT INTO memories (kind, source, title, body, createdAtMs, updatedAtMs) " +
+                    "VALUES ('USER_AUTHORED', 'CHAT', 'also kept', 'fact', 1000, 1000)"
+            )
+            v2.execSQL(
+                "INSERT INTO routines (name, sourceText, enabled, createdAtMs, updatedAtMs) " +
+                    "VALUES ('Bedtime', 'at 11pm turn on silent', 1, 1000, 1000)"
+            )
+        }
+
+        val v3 = helper.runMigrationsAndValidate(
+            TEST_DB,
+            3,
+            true,
+            LumiDatabase.MIGRATION_2_3,
+        )
+
+        // runMigrationsAndValidate with validateDroppedTables already checks every surviving table
+        // against the exported schema. The point of this test is that the new table is actually
+        // usable afterwards, not just present.
+        assertTrue("reminders must exist", v3.hasTable("reminders"))
+        v3.execSQL(
+            "INSERT INTO reminders (kind, text, status, dueAtMs, createdAtMs, updatedAtMs) " +
+                "VALUES ('REMINDER', 'call mom', 'PENDING', 6000, 1000, 1000)"
+        )
+        assertEquals(1, v3.countRows("reminders"))
+
+        assertEquals(1, v3.countRows("chats"))
+        assertEquals(1, v3.countRows("memories"))
+        assertEquals(1, v3.countRows("routines"))
+    }
+
     private fun androidx.sqlite.db.SupportSQLiteDatabase.hasTable(name: String): Boolean =
         query("SELECT name FROM sqlite_master WHERE type='table' AND name=?", arrayOf(name)).use {
             it.count > 0

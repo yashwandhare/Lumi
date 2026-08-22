@@ -22,6 +22,12 @@ in yet — if it is empty, everything is already in the main log.
 ## Unreleased
 
 ### Added
+- [devb] 2026-08-18 — Phase 3 data model: the `reminders` table (schema v3), one table for
+  reminders and todos alike, split only by a kind column. `dueAtMs` is the sole trigger for a
+  reminder — "remind me at 6" stays a plain row and never becomes a routine graph. Every
+  status change is a conditional `UPDATE` returning the rows touched, so a retried worker can
+  never notify twice and a dismissal wins any race with firing. Migration 2→3 is additive and
+  covered, along with the DAO invariants, by new instrumented tests.
 - [devb] 2026-08-16 — Whisper base.en (int8) replaces the 20M streaming zipformer as the
   recognition model — on-device testing showed the old model could not reliably transcribe
   everyday sentences, and the owner ruled recognition quality cannot be compromised. Download is

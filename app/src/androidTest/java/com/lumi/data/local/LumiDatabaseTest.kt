@@ -6,6 +6,8 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.lumi.core.model.ActionType
 import com.lumi.core.model.AuditOutcome
 import com.lumi.core.model.CapabilityId
+import com.lumi.core.model.ReminderKind
+import com.lumi.core.model.ReminderStatus
 import com.lumi.core.model.TriggerType
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -162,6 +164,102 @@ class LumiDatabaseTest {
 
         assertNull(dao.findByUri("content://notes/pending.pdf")?.indexedAtMs)
     }
+
+    @Test
+    fun anActiveListShowsBothKindsSoonestFirstAndNeverDueLast() = runTest {
+        val dao = database.reminderDao()
+        dao.insert(newReminder(kind = ReminderKind.TODO, text = "buy charger", dueAtMs = Long.MAX_VALUE))
+        dao.insert(newReminder(kind = ReminderKind.REMINDER, text = "call mom", dueAtMs = 6_000))
+        dao.insert(newReminder(kind = ReminderKind.REMINDER, text = "standup", dueAtMs = 2_000))
+
+        val active = dao.observeActive().first()
+
+        assertEquals(listOf("standup", "call mom", "buy charger"), active.map { it.text })
+    }
+
+    @Test
+    fun completedAndDismissedItemsLeaveTheActiveList() = runTest {
+        val dao = database.reminderDao()
+        val doneId = dao.insert(newReminder(text = "one", dueAtMs = 1_000))
+        val dismissedId = dao.insert(newReminder(text = "two", dueAtMs = 2_000))
+
+        dao.markDone(doneId, nowMs = 3_000)
+        dao.markDismissed(dismissedId, nowMs = 3_000)
+
+        assertEquals(emptyList<ReminderEntity>(), dao.observeActive().first())
+        val done = dao.find(doneId)!!
+        assertEquals(ReminderStatus.DONE, done.status)
+        assertEquals(3_000L, done.doneAtMs)
+        val dismissed = dao.find(dismissedId)!!
+        assertEquals(ReminderStatus.DISMISSED, dismissed.status)
+    }
+
+    @Test
+    fun markFiredSucceedsExactlyOnceSoARetriedWorkerCannotNotifyTwice() = runTest {
+        val dao = database.reminderDao()
+        val reminderId = dao.insert(newReminder(text = "once", dueAtMs = 1_000))
+
+        assertEquals(1, dao.markFired(reminderId, nowMs = 2_000))
+        assertEquals(0, dao.markFired(reminderId, nowMs = 3_000))
+
+        val row = dao.find(reminderId)!!
+        assertEquals(ReminderStatus.FIRED, row.status)
+        assertEquals(2_000L, row.firedAtMs)
+    }
+
+    @Test
+    fun markingAUserDismissedReminderFiredUpdatesNothing() = runTest {
+        val dao = database.reminderDao()
+        val reminderId = dao.insert(newReminder(text = "race", dueAtMs = 1_000))
+        dao.markDismissed(reminderId, nowMs = 2_000)
+
+        assertEquals(0, dao.markFired(reminderId, nowMs = 3_000))
+
+        assertEquals(ReminderStatus.DISMISSED, dao.find(reminderId)!!.status)
+    }
+
+    @Test
+    fun dueAtOrBeforeReturnsOnlyPendingRowsWhoseTimeHasCome() = runTest {
+        val dao = database.reminderDao()
+        dao.insert(newReminder(text = "due", dueAtMs = 1_000))
+        dao.insert(newReminder(text = "future", dueAtMs = 9_000))
+        val firedId = dao.insert(newReminder(text = "already fired", dueAtMs = 500))
+        dao.markFired(firedId, nowMs = 600)
+
+        val due = dao.dueAtOrBefore(nowMs = 2_000)
+
+        assertEquals(listOf("due"), due.map { it.text })
+    }
+
+    @Test
+    fun reschedulingAReminderMovesDueTimeForwardOnlyFromTheFiredState() = runTest {
+        val dao = database.reminderDao()
+        val reminderId = dao.insert(
+            newReminder(text = "water plants", dueAtMs = 1_000).copy(repeatIntervalMs = 86_400_000),
+        )
+        dao.markFired(reminderId, nowMs = 2_000)
+
+        assertEquals(1, dao.reschedule(reminderId, nextDueAtMs = 87_400_000, repeatIntervalMs = 86_400_000, nowMs = 2_000))
+
+        val row = dao.find(reminderId)!!
+        assertEquals(ReminderStatus.PENDING, row.status)
+        assertEquals(87_400_000L, row.dueAtMs)
+        // Second reschedule attempt fails — the row is no longer FIRED.
+        assertEquals(0, dao.reschedule(reminderId, nextDueAtMs = 87_400_000, repeatIntervalMs = 86_400_000, nowMs = 3_000))
+    }
+
+    private fun newReminder(
+        kind: ReminderKind = ReminderKind.REMINDER,
+        text: String,
+        dueAtMs: Long,
+    ) = ReminderEntity(
+        kind = kind,
+        text = text,
+        status = ReminderStatus.PENDING,
+        dueAtMs = dueAtMs,
+        createdAtMs = 1_000L,
+        updatedAtMs = 1_000L,
+    )
 
     private fun newDocument(uri: String) = DocumentEntity(
         uri = uri,
