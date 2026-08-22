@@ -44,6 +44,12 @@ in yet — if it is empty, everything is already in the main log.
   covered, along with the DAO invariants, by new instrumented tests.
 
 ### Changed
+- [devb] 2026-08-22 — Spoken captures no longer wait for a tap. A reminder or todo asked by
+  voice runs at once and Lumi says what it did ("Added dbm to your list"); the transcript card
+  shows exactly what was stored. Typed input keeps the confirm-first dialog, and anything that
+  changes a setting or touches the network still confirms regardless of origin.
+- [devb] 2026-08-22 — The home-screen widget now re-renders the moment a capture lands, not
+  within one sweep interval. Reasoning in `decisions_devb.md`.
 - [devb] 2026-08-22 — A bare spoken hour means its nearest upcoming face: "remind me at six"
   said in the afternoon now rings at six that evening rather than at dawn tomorrow. An
   explicit "am", "pm", or period word still overrides the reading entirely. Reasoning and

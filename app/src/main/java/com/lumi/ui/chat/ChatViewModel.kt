@@ -175,7 +175,9 @@ class ChatViewModel @Inject constructor(
             }.collectLatest { busy ->
                 if (busy) return@collectLatest
                 delay(VOICE_TURN_SETTLE_MS)
-                if (_voiceTurnActive.value && listeningJob?.isActive != true) {
+                // A pending intent owns the turn until the user answers it; reopening the mic
+                // behind the dialog would have Lumi transcribe whatever happens next.
+                if (_voiceTurnActive.value && _pendingIntent.value == null && listeningJob?.isActive != true) {
                     startListening()
                 }
             }
@@ -408,6 +410,50 @@ class ChatViewModel @Inject constructor(
     }
 
     /**
+     * Runs a spoken reminder/todo capture straight through the dispatcher, without the tap
+     * confirmation.
+     *
+     * Voice is hands-free by definition, and a capture is the lowest-stakes thing Lumi does:
+     * it writes one row the user owns and can dismiss — it never flips a setting or reaches
+     * the network. Demanding a touch for that broke spoken capture entirely (the dialog sat
+     * there silent while the user waited), so for TOOLS over voice Lumi acts at once and says
+     * what it did. The transcript still shows exactly what was stored, as the card; anything
+     * consequence-bearing keeps the confirm-first dialog regardless of origin.
+     */
+    private suspend fun runSpokenCapture(intent: StructuredIntent) {
+        try {
+            val result = dispatcher.dispatch(
+                CapabilityInput(intent = intent, origin = turnOrigin)
+            )
+            updateLastModelTurn { current ->
+                current.copy(
+                    text = result.userMessage,
+                    streaming = false,
+                    card = (result as? CapabilityResult.Ok)?.let { turnCard(intent) },
+                )
+            }
+            // The reply must be heard, not just shown: in voice mode this line is the only
+            // acknowledgement the capture happened.
+            if (turnOrigin == InteractionOrigin.VOICE) speaker.speak(result.userMessage)
+            if (result !is CapabilityResult.Ok) {
+                recordIntent(intent.capability, AuditOutcome.FAILURE, "The capture did not run.")
+            }
+        } catch (cancellation: CancellationException) {
+            throw cancellation
+        } catch (t: Throwable) {
+            updateLastModelTurn { current ->
+                current.copy(text = "Lumi could not save that. Try again.", streaming = false)
+            }
+            speaker.speak("Lumi could not save that. Try again.")
+            recordIntent(
+                intent.capability,
+                AuditOutcome.FAILURE,
+                "Could not run: ${t::class.simpleName ?: "error"}.",
+            )
+        }
+    }
+
+    /**
      * The chat turn's placeholder goes away when a pending intent replaces it: the transcript
      * shows the user's request, and the confirmation dialog owns the reply until the user
      * answers.
@@ -468,6 +514,10 @@ class ChatViewModel @Inject constructor(
                     is RouterOutcome.Routed -> {
                         if (outcome.decision.intent.capability == CapabilityId.CHAT) {
                             runChatGeneration(prompt, conversationId)
+                        } else if (turnOrigin == InteractionOrigin.VOICE &&
+                            outcome.decision.intent.capability == CapabilityId.TOOLS
+                        ) {
+                            runSpokenCapture(outcome.decision.intent)
                         } else {
                             // Consequence-bearing route: show what was understood, act only on a yes.
                             // No audit entry yet — showing a dialog is not an action against the

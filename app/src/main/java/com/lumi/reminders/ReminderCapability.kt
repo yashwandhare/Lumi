@@ -36,6 +36,7 @@ class ReminderCapability @Inject constructor(
     private val scheduler: ReminderScheduler,
     private val audit: AuditLog,
     private val clock: Clock,
+    private val onSaved: OnReminderSaved,
 ) : Capability {
 
     override val id: CapabilityId = CapabilityId.TOOLS
@@ -84,6 +85,9 @@ class ReminderCapability @Inject constructor(
             detail = dueMs?.let { "Due $it." } ?:
                 "No time was found in the request, so it will not ring — it stays on the list.",
         )
+
+        // Surfaces that mirror this table (the home-screen widget) re-render on this signal.
+        onSaved.onSaved(id)
 
         return CapabilityResult.Ok(
             userMessage = when {

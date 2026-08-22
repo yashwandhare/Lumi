@@ -347,3 +347,36 @@ installs, so without USE_EXACT_ALARM every reminder on this demo device would si
 the sweep. Why not USE_EXACT_ALARM alone: it covers only 33+, and minSdk is 31. Play policy
 restricts USE_EXACT_ALARM to alarm/calendar-core apps — Lumi qualifies, and the hackathon build
 is sideloaded regardless.
+
+## 2026-08-22 — Spoken captures execute without the tap confirmation
+
+**Decision.** When the origin is voice and the routed capability is TOOLS (reminder/todo
+capture), Lumi dispatches immediately, renders the stored item as a card in the transcript,
+and speaks the result. The confirm-first dialog stays for typed input, and for every other
+capability regardless of origin.
+
+**Why the break from confirm-before-act for this one case.** Voice is hands-free by
+definition; the dialog demanded a touch, sat there silently while the mic re-armed behind it,
+and spoken capture therefore never completed — the owner reported "add dbm to my list" doing
+nothing, because it was waiting for a tap nobody knew to give. A capture is also the lowest-
+stakes action Lumi has: one row the user owns, dismissible from the list screen, no setting
+touched, nothing leaves the device. The interpreted-intent surface still exists for it — as
+the card showing exactly what was stored, plus the spoken line — it just runs after the save
+instead of gating it.
+
+**The line that must not move:** DEVICE, SEARCH, MAIL, and everything else keep confirmation
+before acting on every origin. Only TOOLS over VOICE auto-executes, because only TOOLS writes
+user-owned data and nothing else. If a capture ever grows a consequence (a reminder that
+triggers a routine, say), it reverts to confirm-first at that point.
+
+## 2026-08-22 — Supersedes: widget staleness window closed via an OnReminderSaved callback
+
+The earlier entry accepted a ≤15-minute staleness window between capturing in chat and the
+widget catching up, deferring the fix until someone felt the gap. The owner felt the gap the
+same day. Closing it did not need the process-safe observer after all: the capability now
+announces saves through an injected `OnReminderSaved` fun interface whose production
+implementation re-renders the widget. Context still never enters the capability — the DI
+graph captures it in the lambda — so JVM testability holds, and the callback doubles as the
+seam for any future listener (a badge, a log, a sync). Fires, completions, dismissals, and
+boot already refreshed immediately; with creation covered, every mutation path now updates the
+widget at once.

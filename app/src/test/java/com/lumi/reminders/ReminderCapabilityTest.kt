@@ -29,7 +29,8 @@ class ReminderCapabilityTest {
     fun `a spoken time becomes a stored instant and an armed alarm`() = runBlocking {
         val dao = FakeReminderDao()
         val scheduler = RecordingScheduler()
-        val capability = capabilityOf(dao, scheduler)
+        val saved = mutableListOf<Long>()
+        val capability = capabilityOf(dao, scheduler, saved)
 
         val result = capability.execute(input("remind me to call mom tomorrow at 6 pm"))
 
@@ -40,6 +41,7 @@ class ReminderCapabilityTest {
         assertTrue("the due instant sits ahead of now", row.dueAtMs > NOW)
         assertEquals(listOf(row.id to row.dueAtMs), scheduler.armed)
         assertEquals(1, scheduler.sweeps)
+        assertEquals("the save is announced once", listOf(row.id), saved)
     }
 
     @Test
@@ -101,13 +103,20 @@ class ReminderCapabilityTest {
         assertEquals("call mom tomorrow at 6 pm", event.subject)
     }
 
-    private fun capabilityOf(dao: FakeReminderDao, scheduler: RecordingScheduler) =
-        ReminderCapability(
+    private fun capabilityOf(
+        dao: FakeReminderDao,
+        scheduler: RecordingScheduler,
+        saved: MutableList<Long> = mutableListOf(),
+    ): ReminderCapability {
+        val capability = ReminderCapability(
             dao = dao,
             scheduler = scheduler,
             audit = AuditLog(dao.audit),
             clock = { NOW },
+            onSaved = { id -> saved += id },
         )
+        return capability
+    }
 
     private fun input(
         text: String,

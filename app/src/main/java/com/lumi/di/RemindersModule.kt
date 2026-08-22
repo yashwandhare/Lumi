@@ -7,8 +7,10 @@ import com.lumi.data.local.ReminderDao
 import com.lumi.reminders.AlarmScheduler
 import com.lumi.reminders.Clock
 import com.lumi.reminders.FireProcessor
+import com.lumi.reminders.OnReminderSaved
 import com.lumi.reminders.ReminderNotifier
 import com.lumi.reminders.ReminderScheduler
+import com.lumi.ui.widget.refreshRemindersWidget
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -49,6 +51,15 @@ object RemindersModule {
 
     @Provides
     fun provideClock(): Clock = Clock(System::currentTimeMillis)
+
+    /**
+     * The widget is the listener: every capture re-renders it, so it never shows a stale list
+     * after "remind me…" lands. The capability itself stays Context-free for JVM testing.
+     */
+    @Provides
+    @Singleton
+    fun provideOnReminderSaved(@ApplicationContext context: Context): OnReminderSaved =
+        OnReminderSaved { refreshRemindersWidget(context) }
 }
 
 /** The alarm-backed [ReminderScheduler]. Bound as an interface so tests can hand in a fake. */
