@@ -64,6 +64,7 @@ import com.lumi.ui.components.hairlineBorder
 import com.lumi.ui.chat.ChatViewModel
 import com.lumi.ui.home.HomeScreen
 import com.lumi.ui.navigation.LumiDestination
+import com.lumi.ui.reminders.RemindersScreen
 import com.lumi.ui.settings.SettingsScreen
 import com.lumi.ui.theme.LumiShape
 import com.lumi.ui.theme.LumiSize
@@ -292,10 +293,7 @@ fun LumiApp(
                     )
                 }
                 composable(LumiDestination.REMINDERS.route) {
-                    EmptyState(
-                        headline = "Reminders",
-                        invitation = "Reminders, todos, and calendar items will show up here once you ask Lumi to keep track of something.",
-                    )
+                    RemindersScreen()
                 }
                 composable(LumiDestination.SEARCH_SCOPE.route) {
                     EmptyState(headline = "Search Scope", invitation = "Manage search sources.")
